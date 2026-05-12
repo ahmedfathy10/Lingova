@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1",
+    "title": "كتاب English A1",
+    "subtitle": "ملخص الدروس والكلمات الأساسية",
+    "language": "الإنجليزية",
+    "level": "A1",
+    "url": "https://example.com/english_a1.pdf",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "2",
+    "title": "كتاب German A1",
+    "subtitle": "تأسيس قواعد ومفردات المستوى الأول",
+    "language": "الألمانية",
+    "level": "A1",
+    "url": "https://example.com/german_a1.pdf",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "4874fce5-5d69-411c-a228-2bd8c73d1530",
+    "title": "Touchstone A1",
+    "subtitle": "",
+    "language": "الإنجليزية",
+    "level": "",
+    "url": "https://drive.google.com/file/d/1NOI_tqsJHZWeqXBThiXHDGnr-uA75-uU/view?usp=sharing",
+    "createdAt": "2026-05-12T17:52:51.313Z",
+    "createdBy": "Lingova Admin"
+  }
+]

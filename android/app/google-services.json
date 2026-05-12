@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "3125746763",
+    "project_id": "lingova-2c60c",
+    "storage_bucket": "lingova-2c60c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:3125746763:android:feb2b362ef4137bb6441ce",
+        "android_client_info": {
+          "package_name": "com.example.lingova_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtsswj-w2ffzcfQ-OLQAKRcR6I8712s3M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,118 @@
+[
+  {
+    "id": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "fullName": "مروان أحمد",
+    "phone": "01204441755",
+    "passwordHash": "8a09941b9008b59dfb85353b781251e6:cd1153512bba9a630c22fd754ea7ed74518828486d131050f4d401e7326c46e19424c9a5c0fa4a8918bfffde0eddf929252ccc4c3f74f79530736694b3d8a085",
+    "address": "الجيزة",
+    "job": "مدرس",
+    "language": "الإنجليزية",
+    "learningReason": "بحب الانجليزي",
+    "referralReason": "مش عارف",
+    "createdAt": "2026-05-09T23:09:21.468Z",
+    "status": "active",
+    "enrollments": [
+      {
+        "courseKey": "الإنجليزية|Touchstone B1",
+        "courseTitle": "Touchstone B1",
+        "courseLanguage": "الإنجليزية",
+        "openedAt": "2026-05-10T22:38:33.230Z",
+        "openedBy": "Lingova Admin",
+        "paymentStatus": "paid"
+      },
+      {
+        "courseKey": "الإنجليزية|Touchstone A1",
+        "courseTitle": "Touchstone A1",
+        "courseLanguage": "الإنجليزية",
+        "openedAt": "2026-05-10T23:37:39.334Z",
+        "openedBy": "Lingova Admin",
+        "paymentStatus": "paid",
+        "paymentMethod": "انستا باي",
+        "paymentDate": "11-05-2026",
+        "paymentPhone": "01145555433",
+        "paidAmount": "7000"
+      }
+    ]
+  },
+  {
+    "id": "db9a4dcd-780d-469b-8391-46c6610244e8",
+    "fullName": "أمنية محمد 2",
+    "phone": "01204446155",
+    "passwordHash": "093996bfedc3bea2c0b08a394235ba25:208e41579710d3e82d8813005971e904a896c72a44621d85c5a90a3bf5304d1963eca73d56f66c1d70f327d060dd6552dfc54742185052b982e6f3fac2ad1547",
+    "address": "الجيزة",
+    "job": "معلم",
+    "language": "الألمانية",
+    "learningReason": "الدراسة",
+    "referralReason": "عشان كورساتكم رخيصة",
+    "createdAt": "2026-05-10T01:23:03.801Z",
+    "role": "admin",
+    "status": "active"
+  },
+  {
+    "id": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "fullName": "مستخدم تجريبي",
+    "phone": "01145555433",
+    "passwordHash": "c8bcb86c9f9a00dcf2075910b92aaaf7:3a14c365f82da4db029c79708ed86bea95c12780873be056ccd11cbde8fb0c898e8f978a640ef72f36755b04d81bf7c0baa194b9a390686060e5bd07dffa38d8",
+    "address": "القاهرة",
+    "job": "طالب",
+    "language": "الإنجليزية",
+    "learningReason": "تجربة التطبيق على الموبايل",
+    "referralReason": "حساب تجريبي",
+    "createdAt": "2026-05-10T02:27:18.2529608Z",
+    "enrollments": [
+      {
+        "courseKey": "الإنجليزية|Touchstone B1",
+        "courseTitle": "Touchstone B1",
+        "courseLanguage": "الإنجليزية",
+        "openedAt": "2026-05-11T12:59:14.895Z",
+        "openedBy": "Lingova Admin",
+        "paymentStatus": "paid",
+        "paymentMethod": "انستا باي",
+        "paymentDate": "11-05-2026",
+        "paymentPhone": "01000000000",
+        "paidAmount": "1400"
+      },
+      {
+        "courseKey": "الإنجليزية|Touchstone A1",
+        "courseTitle": "Touchstone A1",
+        "courseLanguage": "الإنجليزية",
+        "openedAt": "2026-05-12T19:55:15.971Z",
+        "openedBy": "Lingova Admin",
+        "paymentStatus": "paid",
+        "paymentMethod": "محفظة إلكترونية",
+        "paymentDate": "2026-05-12",
+        "paymentPhone": "011",
+        "paidAmount": "7000"
+      }
+    ]
+  },
+  {
+    "id": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "fullName": "Gamila Ahmed",
+    "phone": "01204446255",
+    "passwordHash": "97b28dbab193409f2a97f0f5169ef3f8:840b4ba163f45cd9848a4f5f082b2a3f8286864cfa58daf273b716f036088cf0016e5da070df7e72233d43c2ea7d7e66c68f4bc19a01ea39df2e5eecdb6bb084",
+    "address": "الجيزة",
+    "job": "طالب",
+    "language": "الألمانية",
+    "learningReason": "الدراسة",
+    "referralReason": "no",
+    "role": "student",
+    "status": "active",
+    "createdAt": "2026-05-11T23:20:50.274Z",
+    "createdBy": "App",
+    "enrollments": [
+      {
+        "courseKey": "الإنجليزية|Touchstone A1",
+        "courseTitle": "Touchstone A1",
+        "courseLanguage": "الإنجليزية",
+        "openedAt": "2026-05-11T23:50:49.503Z",
+        "openedBy": "Lingova Admin",
+        "paymentStatus": "paid",
+        "paymentMethod": "انستا باي",
+        "paymentDate": "2026-05-12",
+        "paymentPhone": "01222222",
+        "paidAmount": "7000"
+      }
+    ]
+  }
+]

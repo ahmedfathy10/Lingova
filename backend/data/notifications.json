@@ -1,0 +1,74 @@
+[
+  {
+    "id": "1426b51a-a124-4211-a705-b3e2f3a848d0",
+    "title": "كورس جديد",
+    "body": "تم اضافة كورس جديد",
+    "type": "course",
+    "createdAt": "2026-05-12T19:56:46.081Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "ae44dc85-3253-4399-b8ee-763293c66d96",
+    "title": "hu",
+    "body": "gshdhdhdggd",
+    "type": "general",
+    "createdAt": "2026-05-12T19:36:33.249Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "8d440a20-4987-40ea-b8c0-7fd0b27cf445",
+    "title": "Test",
+    "body": "TEST",
+    "type": "general",
+    "createdAt": "2026-05-12T17:50:47.413Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "675b677a-c769-4a3f-acdc-50965313969a",
+    "title": "الوووووووووووو",
+    "body": "لللل",
+    "type": "general",
+    "createdAt": "2026-05-11T19:55:17.595Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "0aa9f63d-ff22-4e55-a19b-14bab4d20b9f",
+    "title": "بحبك يا امنية",
+    "body": "بحبك يا مونيييييييييييييييييي",
+    "type": "general",
+    "createdAt": "2026-05-11T19:54:21.818Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "e61f3912-1efc-4120-88c3-9b6cd783295a",
+    "title": "أهلا اسامة",
+    "body": "ازيك واحشني والله",
+    "type": "general",
+    "createdAt": "2026-05-11T13:50:05.891Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "4d73c120-573e-4187-a69d-0d96ccd4653c",
+    "title": "أهلا وسهلا",
+    "body": "شكرا جزيلا لاشتراككم في التطبيق",
+    "type": "general",
+    "createdAt": "2026-05-11T13:47:13.456Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "589bdd5a-5c78-4ab1-ba9f-96f5d1cfc9fd",
+    "title": "كورس جديد",
+    "body": "تم اضافة كورس انجليزي جديد",
+    "type": "course",
+    "createdAt": "2026-05-11T12:57:36.417Z",
+    "createdBy": "Lingova Admin"
+  },
+  {
+    "id": "98c10faa-7e75-4c45-b3e1-962a9a097934",
+    "title": "عرض خاص",
+    "body": "خصم 50% على أي كورس حاليا حتى نهاية اليوم",
+    "type": "general",
+    "createdAt": "2026-05-11T12:50:33.718Z",
+    "createdBy": "Lingova Admin"
+  }
+]

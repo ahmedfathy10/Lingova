@@ -1,0 +1,432 @@
+[
+  {
+    "id": "874f5aaa-9ac5-47bc-acbb-24b211879c91",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الرئيسية",
+    "createdAt": "2026-05-12T19:57:22.257Z"
+  },
+  {
+    "id": "741d13ce-dd7e-497c-acca-34a355bad4f8",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المكتبة",
+    "createdAt": "2026-05-12T19:57:21.359Z"
+  },
+  {
+    "id": "baba299c-1633-4ee8-8f5a-899cfe6872d1",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الكورسات",
+    "createdAt": "2026-05-12T19:57:20.595Z"
+  },
+  {
+    "id": "dcfec506-8654-4a06-89e7-c5f33e716192",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الرئيسية",
+    "createdAt": "2026-05-12T19:55:28.541Z"
+  },
+  {
+    "id": "5c896899-19bd-4e48-aab6-14703d6d7145",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الكورسات",
+    "createdAt": "2026-05-12T19:55:27.045Z"
+  },
+  {
+    "id": "97ab7d85-5b4e-448a-9f0c-ececd53c6aeb",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "subscription_approved",
+    "label": "تم فتح كورس مدفوع",
+    "details": "الإنجليزية - Touchstone A1 - 7000",
+    "createdAt": "2026-05-12T19:55:15.975Z"
+  },
+  {
+    "id": "85fab9f6-66a3-4cb6-9f85-fda3caa57925",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الرئيسية",
+    "createdAt": "2026-05-12T19:54:30.243Z"
+  },
+  {
+    "id": "83955744-d2c8-492f-bee7-068d11347aa4",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الكورسات",
+    "createdAt": "2026-05-12T19:54:21.032Z"
+  },
+  {
+    "id": "4095a409-91a6-42fb-8fa1-3e72f39fc1c8",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المكتبة",
+    "createdAt": "2026-05-12T19:54:19.134Z"
+  },
+  {
+    "id": "72cde8ee-5c32-41be-b784-96040d05c3a6",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المزيد",
+    "createdAt": "2026-05-12T19:54:11.994Z"
+  },
+  {
+    "id": "6c5578a7-53de-40d8-8c75-c8d3a5ffd7e0",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "app_open",
+    "label": "فتح التطبيق",
+    "details": "",
+    "createdAt": "2026-05-12T19:53:55.422Z"
+  },
+  {
+    "id": "6cb3afd6-daa1-4aa2-b05e-97eaa4dd32f3",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "action": "login",
+    "label": "تسجيل دخول",
+    "details": "",
+    "createdAt": "2026-05-12T19:53:54.196Z"
+  },
+  {
+    "id": "675b532a-8efd-489e-beec-693e3917c428",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "ask_question",
+    "label": "إضافة سؤال",
+    "details": "الإنجليزية - Touchstone A1 - شكرا",
+    "createdAt": "2026-05-12T19:44:52.978Z"
+  },
+  {
+    "id": "ab077b6a-d46e-490d-8801-ed41cd351911",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الرئيسية",
+    "createdAt": "2026-05-12T19:39:08.815Z"
+  },
+  {
+    "id": "daa2dc3b-c1ba-4a1e-9a21-d699d07e180f",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المزيد",
+    "createdAt": "2026-05-12T19:39:07.724Z"
+  },
+  {
+    "id": "91d5e9c3-4640-4bd0-9a54-58e6dbeb062a",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المزيد",
+    "createdAt": "2026-05-12T19:38:56.434Z"
+  },
+  {
+    "id": "d59c16ae-837e-48d6-96d5-6d97abfed44b",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المكتبة",
+    "createdAt": "2026-05-12T19:38:53.718Z"
+  },
+  {
+    "id": "ea98625c-8d8b-4cdd-a4bc-f0dccd2ff578",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المزيد",
+    "createdAt": "2026-05-12T19:38:45.532Z"
+  },
+  {
+    "id": "5608a881-767a-4c33-8890-36636cb9fcd5",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "app_open",
+    "label": "فتح التطبيق",
+    "details": "",
+    "createdAt": "2026-05-12T19:38:27.148Z"
+  },
+  {
+    "id": "904112f7-f084-428c-9508-de01db267953",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "login",
+    "label": "تسجيل دخول",
+    "details": "",
+    "createdAt": "2026-05-12T19:38:25.121Z"
+  },
+  {
+    "id": "ae948745-ee59-44e0-b172-dca87ab755dc",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المزيد",
+    "createdAt": "2026-05-12T19:25:49.673Z"
+  },
+  {
+    "id": "353aafb3-fc8f-4fa0-bf90-4a9a70aa5473",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الامتحانات",
+    "createdAt": "2026-05-12T19:25:44.111Z"
+  },
+  {
+    "id": "cc32c7ea-1969-41a0-8afd-5249ce91a522",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المكتبة",
+    "createdAt": "2026-05-12T19:25:37.048Z"
+  },
+  {
+    "id": "6af67441-34b4-4e4e-ab3c-888acbd8f4e0",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الكورسات",
+    "createdAt": "2026-05-12T19:25:28.811Z"
+  },
+  {
+    "id": "cf2938e5-cce2-4091-af0f-e187d4cbf72c",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الرئيسية",
+    "createdAt": "2026-05-12T19:23:31.280Z"
+  },
+  {
+    "id": "1451c248-fa47-45cc-a2be-0f15550ea79b",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المكتبة",
+    "createdAt": "2026-05-12T19:15:55.853Z"
+  },
+  {
+    "id": "8abf6537-e667-4ea0-ba75-ee1ae2b76939",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الكورسات",
+    "createdAt": "2026-05-12T19:15:55.071Z"
+  },
+  {
+    "id": "a59bf12a-e1e9-49ad-84f1-f320e32b2862",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المزيد",
+    "createdAt": "2026-05-12T19:15:48.704Z"
+  },
+  {
+    "id": "d100bb4a-6d8f-448b-8a6e-7bac38329de2",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "app_open",
+    "label": "فتح التطبيق",
+    "details": "",
+    "createdAt": "2026-05-12T19:15:35.262Z"
+  },
+  {
+    "id": "802c4c25-7834-4ac5-a3e3-97436636150f",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "login",
+    "label": "تسجيل دخول",
+    "details": "",
+    "createdAt": "2026-05-12T19:15:33.921Z"
+  },
+  {
+    "id": "80742ae3-0fe9-46d2-b639-16cc0a114bbb",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المكتبة",
+    "createdAt": "2026-05-11T23:56:35.719Z"
+  },
+  {
+    "id": "11ffa10d-307e-4099-aa7c-fa79d883f0ed",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الكورسات",
+    "createdAt": "2026-05-11T23:56:33.929Z"
+  },
+  {
+    "id": "4629bd55-b941-4d0b-8033-f9241506c17a",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المكتبة",
+    "createdAt": "2026-05-11T23:56:33.374Z"
+  },
+  {
+    "id": "f962e0cf-9bcc-4be4-921b-f782674a8886",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الامتحانات",
+    "createdAt": "2026-05-11T23:56:14.901Z"
+  },
+  {
+    "id": "e04ed200-d908-4717-916c-f3989da7b489",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "app_open",
+    "label": "فتح التطبيق",
+    "details": "",
+    "createdAt": "2026-05-11T23:55:18.798Z"
+  },
+  {
+    "id": "3d805f5d-fc17-4b49-bed0-5dd2af10b232",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "action": "login",
+    "label": "تسجيل دخول",
+    "details": "",
+    "createdAt": "2026-05-11T23:55:15.793Z"
+  },
+  {
+    "id": "dbeb2141-8c5c-404f-931f-5fe369373792",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "المزيد",
+    "createdAt": "2026-05-11T23:54:44.157Z"
+  },
+  {
+    "id": "9de23745-11c8-4535-b972-1d9f592da50c",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الرئيسية",
+    "createdAt": "2026-05-11T23:51:15.505Z"
+  },
+  {
+    "id": "d739fe19-678f-4304-a6b0-a82a334a18d8",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "action": "navigate",
+    "label": "تنقل داخل التطبيق",
+    "details": "الكورسات",
+    "createdAt": "2026-05-11T23:51:06.852Z"
+  },
+  {
+    "id": "1e90bf66-537d-401b-b49a-9de80f9c2f0e",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "action": "subscription_approved",
+    "label": "تم فتح كورس مدفوع",
+    "details": "الإنجليزية - Touchstone A1 - 7000",
+    "createdAt": "2026-05-11T23:50:49.508Z"
+  },
+  {
+    "id": "ebeb08b9-a984-437f-9152-1b29fa98665a",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "action": "subscription_request",
+    "label": "طلب شراء كورس",
+    "details": "الإنجليزية - Touchstone A1",
+    "createdAt": "2026-05-11T23:49:29.808Z"
+  },
+  {
+    "id": "cbf1ab65-ef47-4513-995a-424c886bff53",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "action": "app_open",
+    "label": "فتح التطبيق",
+    "details": "",
+    "createdAt": "2026-05-11T23:46:40.325Z"
+  },
+  {
+    "id": "1be50972-d718-462d-8a34-1ac051271193",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "action": "login",
+    "label": "تسجيل دخول",
+    "details": "",
+    "createdAt": "2026-05-11T23:46:39.185Z"
+  }
+]

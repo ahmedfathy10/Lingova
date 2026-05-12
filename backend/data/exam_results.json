@@ -1,0 +1,17 @@
+[
+  {
+    "id": "20d44590-1d7f-47ac-9a9e-23154630e080",
+    "examId": "9549a51b-813f-4c45-98e7-bd4d7116b6c1",
+    "studentId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "studentName": "مروان أحمد",
+    "courseTitle": "Touchstone A1",
+    "courseLanguage": "الإنجليزية",
+    "levelTitle": "Level TB",
+    "type": "lecture_quiz",
+    "score": 100,
+    "totalQuestions": 3,
+    "correctAnswers": 3,
+    "passed": true,
+    "submittedAt": "2026-05-11T22:45:10.086Z"
+  }
+]

@@ -1,0 +1,2996 @@
+const crypto = require('crypto');
+const fsSync = require('fs');
+const fs = require('fs/promises');
+const http = require('http');
+const path = require('path');
+let firebaseAdmin = null;
+try {
+  firebaseAdmin = require('firebase-admin');
+} catch {}
+
+const port = Number(process.env.PORT || 3000);
+const host = process.env.HOST || '0.0.0.0';
+const dataDir = path.join(__dirname, 'data');
+const usersFile = path.join(dataDir, 'users.json');
+const coursesFile = path.join(dataDir, 'courses.json');
+const booksFile = path.join(dataDir, 'books.json');
+const subscriptionsFile = path.join(dataDir, 'subscriptions.json');
+const notificationsFile = path.join(dataDir, 'notifications.json');
+const deviceTokensFile = path.join(dataDir, 'device_tokens.json');
+const questionsFile = path.join(dataDir, 'questions.json');
+const watchProgressFile = path.join(dataDir, 'watch_progress.json');
+const examsFile = path.join(dataDir, 'exams.json');
+const examResultsFile = path.join(dataDir, 'exam_results.json');
+const activityLogsFile = path.join(dataDir, 'activity_logs.json');
+const appSessionsFile = path.join(dataDir, 'app_sessions.json');
+const firebaseServiceAccountPath =
+  process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+  path.join(__dirname, 'firebase-service-account.json');
+const adminEmail = process.env.ADMIN_EMAIL || 'admin@lingova.com';
+const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+const adminSessions = new Map();
+const availableCoursesCount = 8;
+let firebaseMessaging = undefined;
+
+async function ensureStore() {
+  await fs.mkdir(dataDir, { recursive: true });
+  try {
+    await fs.access(usersFile);
+  } catch {
+    await fs.writeFile(usersFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(coursesFile);
+  } catch {
+    await fs.writeFile(coursesFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(booksFile);
+  } catch {
+    await fs.writeFile(booksFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(subscriptionsFile);
+  } catch {
+    await fs.writeFile(subscriptionsFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(notificationsFile);
+  } catch {
+    await fs.writeFile(notificationsFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(deviceTokensFile);
+  } catch {
+    await fs.writeFile(deviceTokensFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(questionsFile);
+  } catch {
+    await fs.writeFile(questionsFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(watchProgressFile);
+  } catch {
+    await fs.writeFile(watchProgressFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(examsFile);
+  } catch {
+    await fs.writeFile(examsFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(examResultsFile);
+  } catch {
+    await fs.writeFile(examResultsFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(activityLogsFile);
+  } catch {
+    await fs.writeFile(activityLogsFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(appSessionsFile);
+  } catch {
+    await fs.writeFile(appSessionsFile, '[]\n', 'utf8');
+  }
+}
+
+async function readUsers() {
+  await ensureStore();
+  const content = await fs.readFile(usersFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeUsers(users) {
+  await fs.writeFile(usersFile, `${JSON.stringify(users, null, 2)}\n`, 'utf8');
+}
+
+async function readCourseParts() {
+  await ensureStore();
+  const content = await fs.readFile(coursesFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeCourseParts(parts) {
+  await fs.writeFile(coursesFile, `${JSON.stringify(parts, null, 2)}\n`, 'utf8');
+}
+
+async function readBooks() {
+  await ensureStore();
+  const content = await fs.readFile(booksFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeBooks(books) {
+  await fs.writeFile(booksFile, `${JSON.stringify(books, null, 2)}\n`, 'utf8');
+}
+
+async function readSubscriptions() {
+  await ensureStore();
+  const content = await fs.readFile(subscriptionsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeSubscriptions(subscriptions) {
+  await fs.writeFile(
+    subscriptionsFile,
+    `${JSON.stringify(subscriptions, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readNotifications() {
+  await ensureStore();
+  const content = await fs.readFile(notificationsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeNotifications(notifications) {
+  await fs.writeFile(
+    notificationsFile,
+    `${JSON.stringify(notifications, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readDeviceTokens() {
+  await ensureStore();
+  const content = await fs.readFile(deviceTokensFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeDeviceTokens(tokens) {
+  await fs.writeFile(
+    deviceTokensFile,
+    `${JSON.stringify(tokens, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readQuestions() {
+  await ensureStore();
+  const content = await fs.readFile(questionsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeQuestions(questions) {
+  await fs.writeFile(
+    questionsFile,
+    `${JSON.stringify(questions, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readWatchProgress() {
+  await ensureStore();
+  const content = await fs.readFile(watchProgressFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeWatchProgress(records) {
+  await fs.writeFile(
+    watchProgressFile,
+    `${JSON.stringify(records, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readExams() {
+  await ensureStore();
+  const content = await fs.readFile(examsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeExams(exams) {
+  await fs.writeFile(examsFile, `${JSON.stringify(exams, null, 2)}\n`, 'utf8');
+}
+
+async function readExamResults() {
+  await ensureStore();
+  const content = await fs.readFile(examResultsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeExamResults(results) {
+  await fs.writeFile(
+    examResultsFile,
+    `${JSON.stringify(results, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readActivityLogs() {
+  await ensureStore();
+  const content = await fs.readFile(activityLogsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeActivityLogs(logs) {
+  await fs.writeFile(
+    activityLogsFile,
+    `${JSON.stringify(logs, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readAppSessions() {
+  await ensureStore();
+  const content = await fs.readFile(appSessionsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeAppSessions(sessions) {
+  await fs.writeFile(
+    appSessionsFile,
+    `${JSON.stringify(sessions, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 100000, 64, 'sha512')
+    .toString('hex');
+
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, passwordHash) {
+  const [salt, storedHash] = String(passwordHash || '').split(':');
+  if (!salt || !storedHash) {
+    return false;
+  }
+
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 100000, 64, 'sha512')
+    .toString('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(storedHash));
+}
+
+function sendJson(response, statusCode, body) {
+  response.writeHead(statusCode, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Content-Type': 'application/json; charset=utf-8',
+  });
+  response.end(JSON.stringify(body));
+}
+
+function readBody(request) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+
+    request.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 10_000_000) {
+        request.destroy();
+        reject(new Error('Request body is too large.'));
+      }
+    });
+
+    request.on('end', () => resolve(body));
+    request.on('error', reject);
+  });
+}
+
+function validateRegistration(payload) {
+  const requiredFields = [
+    'fullName',
+    'phone',
+    'password',
+    'address',
+    'job',
+    'language',
+    'learningReason',
+    'referralReason',
+  ];
+
+  for (const field of requiredFields) {
+    if (!String(payload[field] || '').trim()) {
+      return 'Please fill in all fields.';
+    }
+  }
+
+  if (String(payload.password).length < 6) {
+    return 'Password must be at least 6 characters.';
+  }
+
+  if (!/^[0-9+\-\s]{8,20}$/.test(String(payload.phone))) {
+    return 'Please enter a valid phone number.';
+  }
+
+  return null;
+}
+
+function validateUserPayload(payload, { requirePassword }) {
+  const role = normalizeRole(payload.role);
+  const validationError = validateRegistration({
+    fullName: payload.fullName,
+    phone: payload.phone,
+    password: requirePassword ? payload.password : 'temporary-password',
+    address: payload.address,
+    job: payload.job,
+    language: payload.language,
+    learningReason: payload.learningReason,
+    referralReason: payload.referralReason,
+  });
+
+  if (validationError) {
+    return validationError;
+  }
+
+  if (role === 'admin' && !String(payload.phone || '').trim()) {
+    return 'Please enter an admin phone or email.';
+  }
+
+  if (payload.password && String(payload.password).length < 6) {
+    return 'Password must be at least 6 characters.';
+  }
+
+  return null;
+}
+
+function normalizeRole(role) {
+  return role === 'admin' ? 'admin' : 'student';
+}
+
+function validateUserUpdatePayload(payload) {
+  if (
+    payload.password !== undefined &&
+    String(payload.password || '').trim().length < 6
+  ) {
+    return 'Password must be at least 6 characters.';
+  }
+
+  if (
+    payload.phone !== undefined &&
+    !/^[0-9+\-\s]{8,20}$/.test(String(payload.phone))
+  ) {
+    return 'Please enter a valid phone number.';
+  }
+
+  const requiredWhenProvided = [
+    'fullName',
+    'address',
+    'job',
+    'language',
+    'learningReason',
+    'referralReason',
+  ];
+
+  for (const field of requiredWhenProvided) {
+    if (payload[field] !== undefined && !String(payload[field]).trim()) {
+      return 'Please fill in all fields.';
+    }
+  }
+
+  return null;
+}
+
+function normalizeCourseNodeType(type) {
+  return ['course', 'level', 'lecture', 'part'].includes(type) ? type : 'part';
+}
+
+function validateCoursePartPayload(payload) {
+  const type = normalizeCourseNodeType(payload.type);
+  const requiredFieldsByType = {
+    course: ['language', 'course', 'courseLevel'],
+    level: ['language', 'course', 'level'],
+    lecture: ['language', 'course', 'level', 'lecture'],
+    part: ['language', 'course', 'level', 'lecture', 'part', 'vimeoUrl', 'duration'],
+  };
+  const requiredFields = requiredFieldsByType[type];
+
+  for (const field of requiredFields) {
+    if (!String(payload[field] || '').trim()) {
+      return 'Please fill in all course fields.';
+    }
+  }
+
+  if (
+    type === 'part' &&
+    !/^https?:\/\/(www\.)?(vimeo\.com|player\.vimeo\.com)\//.test(
+      String(payload.vimeoUrl)
+    )
+  ) {
+    return 'Please enter a valid Vimeo link.';
+  }
+
+  if (type === 'part' && parseDurationToSeconds(payload.duration) === null) {
+    return 'Please enter duration in hh:mm:ss format.';
+  }
+
+  if (type === 'course') {
+    const courseType = normalizeCoursePaymentType(payload.courseType);
+    if (
+      courseType === 'paid' &&
+      (!String(payload.price || '').trim() ||
+        Number.isNaN(Number(payload.price)) ||
+        Number(payload.price) < 0)
+    ) {
+      return 'Please enter a valid course price.';
+    }
+  }
+
+  return null;
+}
+
+function normalizeCoursePaymentType(courseType) {
+  return String(courseType || '').toLowerCase() === 'paid' ? 'paid' : 'free';
+}
+
+function normalizeNotificationType(type) {
+  const value = String(type || '').trim().toLowerCase();
+  return ['general', 'course', 'lesson', 'exam', 'payment'].includes(value)
+    ? value
+    : 'general';
+}
+
+function getFirebaseMessaging() {
+  if (firebaseMessaging !== undefined) {
+    return firebaseMessaging;
+  }
+
+  firebaseMessaging = null;
+  if (!firebaseAdmin) {
+    return firebaseMessaging;
+  }
+
+  try {
+    if (!firebaseAdmin.apps.length) {
+      if (!fsSync.existsSync(firebaseServiceAccountPath)) {
+        return firebaseMessaging;
+      }
+
+      const serviceAccount = JSON.parse(
+        fsSync.readFileSync(firebaseServiceAccountPath, 'utf8')
+      );
+      firebaseAdmin.initializeApp({
+        credential: firebaseAdmin.credential.cert(serviceAccount),
+      });
+    }
+
+    firebaseMessaging = firebaseAdmin.messaging();
+  } catch {
+    firebaseMessaging = null;
+  }
+
+  return firebaseMessaging;
+}
+
+function normalizeCourseLevel(courseLevel) {
+  const value = String(courseLevel || '').trim();
+  return value || 'مبتدئ';
+}
+
+function normalizeLearningOutcomes(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseDurationToSeconds(duration) {
+  const match = String(duration || '').trim().match(/^(\d{2}):([0-5]\d):([0-5]\d)$/);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  return [hours, minutes, remainingSeconds]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
+}
+
+function publicCoursePart(part) {
+  return {
+    id: part.id,
+    type: part.type || 'part',
+    language: part.language,
+    course: part.course,
+    level: part.level || '',
+    lecture: part.lecture || '',
+    part: part.part || '',
+    vimeoUrl: part.vimeoUrl || '',
+    courseType: part.courseType || 'free',
+    price: part.price || '',
+    courseLevel: part.courseLevel || '',
+    duration: part.duration || '',
+    imageDataUrl: part.imageDataUrl || '',
+    learningOutcomes: normalizeLearningOutcomes(part.learningOutcomes),
+    createdAt: part.createdAt,
+    createdBy: part.createdBy || 'Admin',
+  };
+}
+
+function publicSubscription(subscription) {
+  return {
+    id: subscription.id,
+    studentId: subscription.studentId,
+    studentName: subscription.studentName,
+    studentPhone: subscription.studentPhone,
+    studentAddress: subscription.studentAddress || '',
+    studentJob: subscription.studentJob || '',
+    studentLanguage: subscription.studentLanguage || '',
+    courseTitle: subscription.courseTitle,
+    courseLanguage: subscription.courseLanguage,
+    courseLevel: subscription.courseLevel || '',
+    coursePrice: subscription.coursePrice || '',
+    status: subscription.status || 'pending',
+    requestedAt: subscription.requestedAt,
+    approvedAt: subscription.approvedAt || null,
+    approvedBy: subscription.approvedBy || '',
+    paymentMethod: subscription.paymentMethod || '',
+    paymentDate: subscription.paymentDate || '',
+    paymentPhone: subscription.paymentPhone || '',
+    paidAmount: subscription.paidAmount || '',
+  };
+}
+
+function publicNotification(notification) {
+  return {
+    id: notification.id,
+    title: notification.title,
+    body: notification.body,
+    type: notification.type || 'general',
+    createdAt: notification.createdAt,
+    createdBy: notification.createdBy || 'Admin',
+  };
+}
+
+function publicCourseQuestion(question) {
+  return {
+    id: question.id,
+    studentId: question.studentId,
+    studentName: question.studentName || '',
+    courseTitle: question.courseTitle || '',
+    courseLanguage: question.courseLanguage || '',
+    levelTitle: question.levelTitle || '',
+    lectureTitle: question.lectureTitle || '',
+    partTitle: question.partTitle || '',
+    vimeoUrl: question.vimeoUrl || '',
+    question: question.question || '',
+    answer: question.answer || '',
+    status: question.status || 'pending',
+    createdAt: question.createdAt,
+    answeredAt: question.answeredAt || '',
+    answeredBy: question.answeredBy || '',
+  };
+}
+
+function publicWatchProgress(record) {
+  return {
+    id: record.id,
+    studentId: record.studentId,
+    studentName: record.studentName || '',
+    studentPhone: record.studentPhone || '',
+    courseTitle: record.courseTitle || '',
+    courseLanguage: record.courseLanguage || '',
+    levelTitle: record.levelTitle || '',
+    lectureTitle: record.lectureTitle || '',
+    partTitle: record.partTitle || '',
+    vimeoUrl: record.vimeoUrl || '',
+    duration: record.duration || '',
+    completedAt: record.completedAt,
+    watchDate: record.watchDate || String(record.completedAt || '').slice(0, 10),
+    watchCount: Number(record.watchCount || 1),
+  };
+}
+
+function normalizeExamType(type) {
+  return String(type || '') === 'level_final' ? 'level_final' : 'lecture_quiz';
+}
+
+function normalizeQuestionType(type) {
+  const value = String(type || '').trim();
+  return ['mcq', 'true_false', 'complete', 'audio', 'video'].includes(value)
+    ? value
+    : 'mcq';
+}
+
+function publicExam(exam, { includeAnswers = false } = {}) {
+  return {
+    id: exam.id,
+    title: exam.title || '',
+    description: exam.description || '',
+    type: normalizeExamType(exam.type),
+    courseTitle: exam.courseTitle || '',
+    courseLanguage: exam.courseLanguage || '',
+    levelTitle: exam.levelTitle || '',
+    afterLectureIndex: Number(exam.afterLectureIndex || 0),
+    passScore: Number(exam.passScore || 60),
+    durationMinutes: Number(exam.durationMinutes || 10),
+    createdAt: exam.createdAt,
+    createdBy: exam.createdBy || 'Admin',
+    questions: (Array.isArray(exam.questions) ? exam.questions : []).map((question) => ({
+      id: question.id,
+      type: normalizeQuestionType(question.type),
+      prompt: question.prompt || '',
+      options: Array.isArray(question.options) ? question.options : [],
+      correctAnswers: includeAnswers && Array.isArray(question.correctAnswers)
+        ? question.correctAnswers
+        : [],
+    })),
+  };
+}
+
+function publicExamResult(result) {
+  return {
+    id: result.id,
+    examId: result.examId,
+    studentId: result.studentId,
+    studentName: result.studentName || '',
+    courseTitle: result.courseTitle || '',
+    courseLanguage: result.courseLanguage || '',
+    levelTitle: result.levelTitle || '',
+    type: normalizeExamType(result.type),
+    score: Number(result.score || 0),
+    totalQuestions: Number(result.totalQuestions || 0),
+    correctAnswers: Number(result.correctAnswers || 0),
+    passed: Boolean(result.passed),
+    submittedAt: result.submittedAt,
+  };
+}
+
+function readMoney(value) {
+  const cleaned = String(value || '').replace(/[^\d.]/g, '');
+  return Number(cleaned) || 0;
+}
+
+function parsePaymentDay(value) {
+  const raw = String(value || '').trim();
+  const iso = Date.parse(raw);
+  if (!Number.isNaN(iso)) {
+    return new Date(iso);
+  }
+
+  const match = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (match) {
+    return new Date(
+      Number(match[3]),
+      Number(match[2]) - 1,
+      Number(match[1])
+    );
+  }
+
+  return null;
+}
+
+function dateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+function monthKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 7);
+}
+
+function publicActivityLog(log) {
+  return {
+    id: log.id,
+    userId: log.userId || '',
+    userName: log.userName || '',
+    userPhone: log.userPhone || '',
+    action: log.action || '',
+    label: log.label || '',
+    details: log.details || '',
+    createdAt: log.createdAt,
+  };
+}
+
+async function recordActivity({
+  userId = '',
+  userName = '',
+  userPhone = '',
+  action = '',
+  label = '',
+  details = '',
+} = {}) {
+  const logs = await readActivityLogs();
+  logs.unshift({
+    id: crypto.randomUUID(),
+    userId,
+    userName,
+    userPhone,
+    action,
+    label,
+    details,
+    createdAt: new Date().toISOString(),
+  });
+  await writeActivityLogs(logs.slice(0, 5000));
+}
+
+function publicDeviceToken(deviceToken) {
+  return {
+    id: deviceToken.id,
+    userId: deviceToken.userId,
+    token: deviceToken.token,
+    platform: deviceToken.platform || 'unknown',
+    createdAt: deviceToken.createdAt,
+    updatedAt: deviceToken.updatedAt || deviceToken.createdAt,
+  };
+}
+
+function courseKeyFor(language, courseTitle) {
+  return `${String(language || '').trim()}|${String(courseTitle || '').trim()}`;
+}
+
+function buildUserFromPayload(payload, { createdBy = 'App' } = {}) {
+  return {
+    id: crypto.randomUUID(),
+    fullName: String(payload.fullName).trim(),
+    phone: String(payload.phone).replace(/\s/g, ''),
+    passwordHash: hashPassword(String(payload.password)),
+    address: String(payload.address).trim(),
+    job: String(payload.job).trim(),
+    language: String(payload.language).trim(),
+    learningReason: String(payload.learningReason).trim(),
+    referralReason: String(payload.referralReason).trim(),
+    role: normalizeRole(payload.role),
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    createdBy,
+  };
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    phone: user.phone,
+    address: user.address,
+    job: user.job,
+    language: user.language,
+    learningReason: user.learningReason,
+    referralReason: user.referralReason,
+    status: user.status || 'active',
+    role: user.role || 'student',
+    createdAt: user.createdAt,
+    createdBy: user.createdBy || 'App',
+    enrollments: Array.isArray(user.enrollments) ? user.enrollments : [],
+  };
+}
+
+function systemAdminUser() {
+  return {
+    id: 'system-admin',
+    fullName: 'مدير النظام',
+    phone: adminEmail,
+    address: 'لوحة التحكم',
+    job: 'إدارة',
+    language: 'كل اللغات',
+    learningReason: 'إدارة المنصة',
+    referralReason: 'حساب افتراضي',
+    status: 'active',
+    role: 'admin',
+    createdAt: null,
+    createdBy: 'System',
+  };
+}
+
+function getAdminSession(request) {
+  const header = request.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  return adminSessions.get(token);
+}
+
+function requireAdmin(request, response) {
+  const session = getAdminSession(request);
+  if (session) {
+    return session;
+  }
+
+  sendJson(response, 401, { message: 'غير مصرح بالدخول.' });
+  return null;
+}
+
+async function register(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const validationError = validateRegistration(payload);
+
+    if (validationError) {
+      sendJson(response, 400, { message: validationError });
+      return;
+    }
+
+    const users = await readUsers();
+    const normalizedPhone = String(payload.phone).replace(/\s/g, '');
+    const userExists = users.some((user) => user.phone === normalizedPhone);
+
+    if (userExists) {
+      sendJson(response, 409, {
+        message: 'This phone number already has an account.',
+      });
+      return;
+    }
+
+    const user = buildUserFromPayload(payload, { createdBy: 'App' });
+    user.phone = normalizedPhone;
+    users.push(user);
+    await writeUsers(users);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'register',
+      label: 'تسجيل حساب جديد',
+      details: user.language || '',
+    });
+
+    sendJson(response, 201, {
+      message: 'Account created successfully.',
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        phone: user.phone,
+        language: user.language,
+        enrollments: [],
+      },
+    });
+  } catch {
+    sendJson(response, 500, {
+      message: 'Something went wrong while creating the account.',
+    });
+  }
+}
+
+async function login(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const phone = String(payload.phone || '').replace(/\s/g, '');
+    const password = String(payload.password || '');
+
+    if (!phone || !password) {
+      sendJson(response, 400, {
+        message: 'Please enter your phone and password.',
+      });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.phone === phone);
+
+    if (!user) {
+      sendJson(response, 404, {
+        message: 'انت مش مشترك، أنشئ حساب جديد.',
+      });
+      return;
+    }
+
+    if ((user.role || 'student') !== 'student') {
+      sendJson(response, 403, {
+        message: 'هذا الحساب مخصص للوحة التحكم فقط.',
+      });
+      return;
+    }
+
+    if ((user.status || 'active') === 'suspended') {
+      sendJson(response, 403, {
+        message: 'تم تعليق الدخول لهذا الحساب.',
+      });
+      return;
+    }
+
+    if (!verifyPassword(password, user.passwordHash)) {
+      sendJson(response, 401, {
+        message: 'حاول تكتب كلمة السر من جديد.',
+      });
+      return;
+    }
+
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'login',
+      label: 'تسجيل دخول',
+      details: '',
+    });
+
+    sendJson(response, 200, {
+      message: 'تم تسجيل الدخول بنجاح.',
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        phone: user.phone,
+        language: user.language,
+        enrollments: Array.isArray(user.enrollments) ? user.enrollments : [],
+      },
+    });
+  } catch {
+    sendJson(response, 500, {
+      message: 'Something went wrong while logging in.',
+    });
+  }
+}
+
+async function getPublicUser(request, response, userId) {
+  try {
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === userId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+    sendJson(response, 200, { user: publicUser(user) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل بيانات الطالب.' });
+  }
+}
+
+async function adminLogin(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const email = String(payload.email || '').trim().toLowerCase();
+    const password = String(payload.password || '');
+
+    const users = await readUsers();
+    const adminUser = users.find((user) => {
+      const role = normalizeRole(user.role);
+      const identifier = String(user.email || user.phone || '')
+        .trim()
+        .toLowerCase();
+      return role === 'admin' && identifier === email;
+    });
+
+    const isDefaultAdmin =
+      email === adminEmail.toLowerCase() && password === adminPassword;
+    const isStoredAdmin =
+      adminUser &&
+      (adminUser.status || 'active') === 'active' &&
+      verifyPassword(password, adminUser.passwordHash);
+
+    if (!isDefaultAdmin && !isStoredAdmin) {
+      sendJson(response, 401, { message: 'بيانات الأدمن غير صحيحة.' });
+      return;
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const adminName = isStoredAdmin ? adminUser.fullName : 'Lingova Admin';
+    adminSessions.set(token, {
+      name: adminName,
+      email: isStoredAdmin ? adminUser.phone : adminEmail,
+    });
+
+    sendJson(response, 200, {
+      token,
+      admin: {
+        name: adminName,
+        email: isStoredAdmin ? adminUser.phone : adminEmail,
+      },
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تسجيل دخول الأدمن.' });
+  }
+}
+
+async function adminStats(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const users = await readUsers();
+    const courseParts = await readCourseParts();
+    const subscriptions = await readSubscriptions();
+    const sessions = await readAppSessions();
+    const logs = await readActivityLogs();
+    const students = users.filter((user) => normalizeRole(user.role) === 'student');
+    const uniqueCourses = new Set(courseParts.map((part) => part.course));
+    const registrationsByLanguage = students.reduce((result, user) => {
+      const language = user.language || 'غير محدد';
+      result[language] = (result[language] || 0) + 1;
+      return result;
+    }, {});
+    const now = new Date();
+    const today = dateKey(now);
+    const thisMonth = monthKey(now);
+    const approvedSubscriptions = subscriptions.filter(
+      (subscription) => (subscription.status || 'pending') === 'approved'
+    );
+    const revenueByCourseMap = new Map();
+    let totalRevenue = 0;
+    let todayRevenue = 0;
+    let monthRevenue = 0;
+
+    for (const subscription of approvedSubscriptions) {
+      const amount = readMoney(
+        subscription.paidAmount || subscription.coursePrice
+      );
+      const paidAt =
+        parsePaymentDay(subscription.approvedAt) ||
+        parsePaymentDay(subscription.paymentDate) ||
+        parsePaymentDay(subscription.requestedAt) ||
+        now;
+      const language = subscription.courseLanguage || 'غير محدد';
+      const courseTitle = subscription.courseTitle || 'غير محدد';
+      const key = `${language}|${courseTitle}`;
+      const current = revenueByCourseMap.get(key) || {
+        courseLanguage: language,
+        courseTitle,
+        purchasesCount: 0,
+        collectedAmount: 0,
+      };
+
+      current.purchasesCount += 1;
+      current.collectedAmount += amount;
+      revenueByCourseMap.set(key, current);
+      totalRevenue += amount;
+
+      if (dateKey(paidAt) === today) {
+        todayRevenue += amount;
+      }
+      if (monthKey(paidAt) === thisMonth) {
+        monthRevenue += amount;
+      }
+    }
+
+    const activeThreshold = Date.now() - 2 * 60 * 1000;
+    const activeNowCount = sessions.filter((session) => {
+      const lastSeen = Date.parse(session.lastSeenAt || '');
+      return !Number.isNaN(lastSeen) && lastSeen >= activeThreshold;
+    }).length;
+    const opensTodayCount = logs.filter(
+      (log) => log.action === 'app_open' && dateKey(new Date(log.createdAt)) === today
+    ).length;
+
+    sendJson(response, 200, {
+      studentsCount: students.length,
+      activeUsersCount: users.filter(
+        (user) => (user.status || 'active') === 'active'
+      ).length,
+      suspendedUsersCount: users.filter((user) => user.status === 'suspended')
+        .length,
+      courseRegistrationsCount: students.filter((user) => user.language).length,
+      coursesCount: uniqueCourses.size || availableCoursesCount,
+      registrationsByLanguage,
+      revenue: {
+        total: totalRevenue,
+        today: todayRevenue,
+        month: monthRevenue,
+        byCourse: Array.from(revenueByCourseMap.values()).sort(
+          (a, b) => b.collectedAmount - a.collectedAmount
+        ),
+      },
+      activity: {
+        activeNowCount,
+        opensTodayCount,
+      },
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل إحصائيات الداشبورد.' });
+  }
+}
+
+async function listCourseParts(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const parts = await readCourseParts();
+    sendJson(response, 200, { parts: parts.map(publicCoursePart) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الكورسات.' });
+  }
+}
+
+async function listAdminBooks(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const books = await readBooks();
+    sendJson(response, 200, { books });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الكتب.' });
+  }
+}
+
+async function listNotifications(request, response) {
+  try {
+    const notifications = await readNotifications();
+    sendJson(response, 200, {
+      notifications: notifications.map(publicNotification),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل التنبيهات.' });
+  }
+}
+
+async function registerDeviceToken(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const userId = String(payload.userId || '').trim();
+    const token = String(payload.token || '').trim();
+    const platform = String(payload.platform || 'unknown').trim();
+
+    if (!userId || !token) {
+      sendJson(response, 400, { message: 'بيانات الجهاز غير مكتملة.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === userId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات المستخدم غير موجودة.' });
+      return;
+    }
+
+    const deviceTokens = await readDeviceTokens();
+    const existing = deviceTokens.find((item) => item.token === token);
+    if (existing) {
+      existing.userId = userId;
+      existing.platform = platform;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      deviceTokens.push({
+        id: crypto.randomUUID(),
+        userId,
+        token,
+        platform,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    await writeDeviceTokens(deviceTokens);
+    sendJson(response, 200, { message: 'تم تسجيل الجهاز.', token: publicDeviceToken(existing || deviceTokens[deviceTokens.length - 1]) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تسجيل الجهاز.' });
+  }
+}
+
+async function sendPushNotification(notification) {
+  const messaging = getFirebaseMessaging();
+  if (!messaging) {
+    return { sent: false, reason: 'firebase_unavailable' };
+  }
+
+  const deviceTokens = await readDeviceTokens();
+  const tokens = deviceTokens
+    .map((item) => String(item.token || '').trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    return { sent: false, reason: 'no_tokens' };
+  }
+
+  try {
+    const result = await messaging.sendEachForMulticast({
+      tokens,
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
+      data: {
+        notificationId: notification.id,
+        type: notification.type || 'general',
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'lingova_notifications',
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
+    });
+
+    const invalidTokens = [];
+    result.responses.forEach((item, index) => {
+      if (item.success) {
+        return;
+      }
+      const code = item.error?.code || '';
+      if (
+        code.includes('registration-token-not-registered') ||
+        code.includes('invalid-argument')
+      ) {
+        invalidTokens.push(tokens[index]);
+      }
+    });
+
+    if (invalidTokens.length) {
+      const nextTokens = deviceTokens.filter(
+        (item) => !invalidTokens.includes(item.token)
+      );
+      await writeDeviceTokens(nextTokens);
+    }
+
+    return {
+      sent: result.successCount > 0,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+    };
+  } catch {
+    return { sent: false, reason: 'send_failed' };
+  }
+}
+
+async function listAdminNotifications(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  await listNotifications(request, response);
+}
+
+async function createNotification(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const title = String(payload.title || '').trim();
+    const body = String(payload.body || '').trim();
+
+    if (!title || !body) {
+      sendJson(response, 400, { message: 'من فضلك اكتب عنوان التنبيه والمحتوى.' });
+      return;
+    }
+
+    const notifications = await readNotifications();
+    const notification = {
+      id: crypto.randomUUID(),
+      title,
+      body,
+      type: normalizeNotificationType(payload.type),
+      createdAt: new Date().toISOString(),
+      createdBy: adminSession.name || 'Admin',
+    };
+
+    notifications.unshift(notification);
+    await writeNotifications(notifications);
+    const push = await sendPushNotification(notification);
+    sendJson(response, 201, {
+      notification: publicNotification(notification),
+      push,
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال التنبيه.' });
+  }
+}
+
+async function listPublicCourses(request, response) {
+  try {
+    const parts = await readCourseParts();
+    const grouped = new Map();
+
+    for (const part of parts) {
+      if (!part.language || !part.course) {
+        continue;
+      }
+      const key = `${part.language}|${part.course}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          language: part.language,
+          course: part.course,
+          courseType: part.courseType || 'free',
+          price: part.price || '',
+          courseLevel: part.courseLevel || '',
+          imageDataUrl: part.imageDataUrl || '',
+          learningOutcomes: [],
+          levels: new Set(),
+          lectures: new Set(),
+          totalDurationSeconds: 0,
+          parts: 0,
+        });
+      }
+      const entry = grouped.get(key);
+      if ((part.type || 'part') === 'course') {
+        entry.courseType = part.courseType || 'free';
+        entry.price = part.price || '';
+        entry.courseLevel = part.courseLevel || entry.courseLevel;
+        entry.imageDataUrl = part.imageDataUrl || entry.imageDataUrl;
+        entry.learningOutcomes = normalizeLearningOutcomes(part.learningOutcomes);
+      }
+      if (part.level) {
+        entry.levels.add(part.level);
+      }
+      if (part.lecture) {
+        entry.lectures.add(part.lecture);
+      }
+      if ((part.type || 'part') === 'part') {
+        entry.parts += 1;
+        entry.totalDurationSeconds += parseDurationToSeconds(part.duration) || 0;
+      }
+    }
+
+    const courses = [...grouped.values()].map((entry) => {
+      const levels = [...entry.levels];
+      const levelBadge = entry.courseLevel || levels[0] || 'Course';
+      const lessonsTotal = entry.lectures.size || entry.parts || 0;
+      return {
+        title: entry.course,
+        language: entry.language,
+        levelBadge,
+        level: levelBadge,
+        levelsCount: levels.length,
+        lessonsTotal,
+        lessonsCount: `${lessonsTotal} درس`,
+        duration: formatDuration(entry.totalDurationSeconds),
+        imageDataUrl: entry.imageDataUrl || '',
+        learningOutcomes: entry.learningOutcomes,
+        price: entry.courseType === 'paid' ? entry.price : 'مجانا',
+        courseType: entry.courseType,
+        description: `كورس ${entry.course} في ${entry.language} من Lingova.`,
+      };
+    });
+
+    sendJson(response, 200, { courses });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الكورسات.' });
+  }
+}
+
+async function listBooks(request, response) {
+  try {
+    const books = await readBooks();
+    sendJson(response, 200, { books });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الكتب.' });
+  }
+}
+
+async function getStudentCourseContent(request, response, url) {
+  try {
+    const studentId = String(url.searchParams.get('studentId') || '').trim();
+    const courseTitle = String(url.searchParams.get('courseTitle') || '').trim();
+    const courseLanguage = String(url.searchParams.get('courseLanguage') || '').trim();
+    const courseKey = courseKeyFor(courseLanguage, courseTitle);
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    const enrollments = Array.isArray(user?.enrollments) ? user.enrollments : [];
+    const isEnrolled = enrollments.some(
+      (enrollment) => enrollment.courseKey === courseKey
+    );
+
+    if (!isEnrolled) {
+      sendJson(response, 403, { message: 'الكورس غير مفتوح لهذا الطالب.' });
+      return;
+    }
+
+    const parts = await readCourseParts();
+    const courseParts = parts.filter(
+      (part) => part.course === courseTitle && part.language === courseLanguage
+    );
+    const levelsMap = new Map();
+
+    for (const part of courseParts) {
+      if (!part.level) {
+        continue;
+      }
+      if (!levelsMap.has(part.level)) {
+        levelsMap.set(part.level, new Map());
+      }
+      const lecturesMap = levelsMap.get(part.level);
+      if (part.lecture && !lecturesMap.has(part.lecture)) {
+        lecturesMap.set(part.lecture, []);
+      }
+      if ((part.type || 'part') === 'part' && part.lecture) {
+        lecturesMap.get(part.lecture).push({
+          title: part.part,
+          vimeoUrl: part.vimeoUrl,
+          duration: part.duration || '00:00:00',
+        });
+      }
+    }
+
+    const levels = [...levelsMap.entries()].map(([title, lecturesMap]) => ({
+      title,
+      lectures: [...lecturesMap.entries()].map(([lectureTitle, lectureParts]) => ({
+        title: lectureTitle,
+        parts: lectureParts,
+      })),
+    }));
+
+    sendJson(response, 200, {
+      course: {
+        title: courseTitle,
+        language: courseLanguage,
+        levels,
+      },
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل محتوى الكورس.' });
+  }
+}
+
+async function listStudentQuestions(request, response, url) {
+  try {
+    const studentId = String(url.searchParams.get('studentId') || '').trim();
+    const courseTitle = String(url.searchParams.get('courseTitle') || '').trim();
+    const courseLanguage = String(url.searchParams.get('courseLanguage') || '').trim();
+
+    if (!studentId || !courseTitle || !courseLanguage) {
+      sendJson(response, 400, { message: 'بيانات الأسئلة غير مكتملة.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    const enrollments = Array.isArray(user?.enrollments) ? user.enrollments : [];
+    const courseKey = courseKeyFor(courseLanguage, courseTitle);
+    const isEnrolled = enrollments.some(
+      (enrollment) => enrollment.courseKey === courseKey
+    );
+
+    if (!isEnrolled) {
+      sendJson(response, 403, { message: 'الكورس غير مفتوح لهذا الطالب.' });
+      return;
+    }
+
+    const questions = await readQuestions();
+    const studentQuestions = questions.filter(
+      (question) =>
+        question.studentId === studentId &&
+        question.courseTitle === courseTitle &&
+        question.courseLanguage === courseLanguage
+    );
+
+    sendJson(response, 200, {
+      questions: studentQuestions.map(publicCourseQuestion),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الأسئلة.' });
+  }
+}
+
+async function listStudentWatchProgress(request, response, url) {
+  try {
+    const studentId = String(url.searchParams.get('studentId') || '').trim();
+    const courseTitle = String(url.searchParams.get('courseTitle') || '').trim();
+    const courseLanguage = String(url.searchParams.get('courseLanguage') || '').trim();
+
+    if (!studentId || !courseTitle || !courseLanguage) {
+      sendJson(response, 400, { message: 'بيانات المشاهدة غير مكتملة.' });
+      return;
+    }
+
+    const records = await readWatchProgress();
+    const filtered = records.filter(
+      (record) =>
+        record.studentId === studentId &&
+        record.courseTitle === courseTitle &&
+        record.courseLanguage === courseLanguage
+    );
+
+    sendJson(response, 200, {
+      records: filtered.map(publicWatchProgress),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل سجل المشاهدة.' });
+  }
+}
+
+async function completePartWatch(request, response) {
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const studentId = String(payload.studentId || '').trim();
+    const courseTitle = String(payload.courseTitle || '').trim();
+    const courseLanguage = String(payload.courseLanguage || '').trim();
+    const levelTitle = String(payload.levelTitle || '').trim();
+    const lectureTitle = String(payload.lectureTitle || '').trim();
+    const partTitle = String(payload.partTitle || '').trim();
+    const vimeoUrl = String(payload.vimeoUrl || '').trim();
+    const duration = String(payload.duration || '').trim();
+
+    if (
+      !studentId ||
+      !courseTitle ||
+      !courseLanguage ||
+      !levelTitle ||
+      !lectureTitle ||
+      !partTitle ||
+      !vimeoUrl
+    ) {
+      sendJson(response, 400, { message: 'بيانات المشاهدة غير مكتملة.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+
+    const courseKey = courseKeyFor(courseLanguage, courseTitle);
+    const enrollments = Array.isArray(user.enrollments) ? user.enrollments : [];
+    const isEnrolled = enrollments.some(
+      (enrollment) => enrollment.courseKey === courseKey
+    );
+    if (!isEnrolled) {
+      sendJson(response, 403, { message: 'الكورس غير مفتوح لهذا الطالب.' });
+      return;
+    }
+
+    const now = new Date();
+    const completedAt = now.toISOString();
+    const watchDate = completedAt.slice(0, 10);
+    const records = await readWatchProgress();
+    const existing = records.find(
+      (record) =>
+        record.studentId === studentId &&
+        record.courseTitle === courseTitle &&
+        record.courseLanguage === courseLanguage &&
+        record.vimeoUrl === vimeoUrl &&
+        record.watchDate === watchDate
+    );
+
+    if (existing) {
+      existing.completedAt = completedAt;
+      existing.duration = duration || existing.duration || '';
+      existing.watchCount = Number(existing.watchCount || 1) + 1;
+    } else {
+      records.unshift({
+        id: crypto.randomUUID(),
+        studentId,
+        studentName: user.fullName || '',
+        studentPhone: user.phone || '',
+        courseTitle,
+        courseLanguage,
+        levelTitle,
+        lectureTitle,
+        partTitle,
+        vimeoUrl,
+        duration,
+        completedAt,
+        watchDate,
+        watchCount: 1,
+      });
+    }
+
+    await writeWatchProgress(records);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'watch_part',
+      label: 'مشاهدة جزء كامل',
+      details: `${courseLanguage} - ${courseTitle} - ${levelTitle} - ${lectureTitle} - ${partTitle}`,
+    });
+    sendJson(response, 200, {
+      record: publicWatchProgress(existing || records[0]),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تسجيل مشاهدة الجزء.' });
+  }
+}
+
+async function listAdminWatchReport(request, response, url) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const requestedDate = String(url.searchParams.get('date') || today).trim();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+      ? requestedDate
+      : today;
+    const records = await readWatchProgress();
+    const filtered = records
+      .filter((record) => (record.watchDate || '').slice(0, 10) === date)
+      .sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
+    const uniqueStudents = new Set(filtered.map((record) => record.studentId));
+    const uniqueCourses = new Set(
+      filtered.map((record) => `${record.courseLanguage}|${record.courseTitle}`)
+    );
+
+    sendJson(response, 200, {
+      date,
+      summary: {
+        completedPartsCount: filtered.length,
+        studentsCount: uniqueStudents.size,
+        coursesCount: uniqueCourses.size,
+        totalWatchCount: filtered.reduce(
+          (sum, record) => sum + Number(record.watchCount || 1),
+          0
+        ),
+      },
+      records: filtered.map(publicWatchProgress),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل تقرير المشاهدة.' });
+  }
+}
+
+async function listAdminExams(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const exams = await readExams();
+    sendJson(response, 200, {
+      exams: exams.map((exam) => publicExam(exam, { includeAnswers: true })),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الامتحانات.' });
+  }
+}
+
+async function listAdminExamResults(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const results = await readExamResults();
+    const attemptsCount = results.length;
+    const passedCount = results.filter((result) => Boolean(result.passed)).length;
+    const totalScore = results.reduce(
+      (sum, result) => sum + Number(result.score || 0),
+      0
+    );
+    const averageScore = attemptsCount
+      ? Math.round(totalScore / attemptsCount)
+      : 0;
+
+    sendJson(response, 200, {
+      summary: {
+        attemptsCount,
+        passedCount,
+        failedCount: attemptsCount - passedCount,
+        averageScore,
+      },
+      results: results.map(publicExamResult),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل تقارير الامتحانات.' });
+  }
+}
+
+async function createAdminExam(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const type = normalizeExamType(payload.type);
+    const title = String(payload.title || '').trim();
+    const courseTitle = String(payload.courseTitle || '').trim();
+    const courseLanguage = String(payload.courseLanguage || '').trim();
+    const levelTitle = String(payload.levelTitle || '').trim();
+    const afterLectureIndex = Number(payload.afterLectureIndex || 0);
+    const questionsPayload = Array.isArray(payload.questions) ? payload.questions : [];
+
+    if (!title || !courseTitle || !courseLanguage || !levelTitle) {
+      sendJson(response, 400, { message: 'من فضلك املأ بيانات الامتحان.' });
+      return;
+    }
+
+    if (type === 'lecture_quiz' && (!afterLectureIndex || afterLectureIndex < 1)) {
+      sendJson(response, 400, { message: 'حدد مكان الكويز بعد أي محاضرة.' });
+      return;
+    }
+
+    const questions = questionsPayload.map((item) => {
+      const questionType = normalizeQuestionType(item.type);
+      return {
+        id: crypto.randomUUID(),
+        type: questionType,
+        prompt: String(item.prompt || '').trim(),
+        options: Array.isArray(item.options)
+          ? item.options.map((option) => String(option || '').trim()).filter(Boolean)
+          : [],
+        correctAnswers: Array.isArray(item.correctAnswers)
+          ? item.correctAnswers.map((answer) => String(answer || '').trim()).filter(Boolean)
+          : [],
+      };
+    });
+
+    if (questions.some((question) => !question.prompt || !question.correctAnswers.length)) {
+      sendJson(response, 400, { message: 'راجع نصوص الأسئلة والإجابات الصحيحة.' });
+      return;
+    }
+
+    const exams = await readExams();
+    const exam = {
+      id: crypto.randomUUID(),
+      title,
+      description: String(payload.description || '').trim(),
+      type,
+      courseTitle,
+      courseLanguage,
+      levelTitle,
+      afterLectureIndex: type === 'lecture_quiz' ? afterLectureIndex : 0,
+      passScore: Math.min(100, Math.max(1, Number(payload.passScore || 60))),
+      durationMinutes: Math.max(1, Number(payload.durationMinutes || 10)),
+      questions,
+      createdAt: new Date().toISOString(),
+      createdBy: adminSession.name || 'Admin',
+    };
+
+    exams.unshift(exam);
+    await writeExams(exams);
+    sendJson(response, 201, { exam: publicExam(exam, { includeAnswers: true }) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إنشاء الامتحان.' });
+  }
+}
+
+async function updateAdminExamQuestions(request, response, examId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const questionsPayload = Array.isArray(payload.questions) ? payload.questions : [];
+    const questions = questionsPayload.map((item) => {
+      const questionType = normalizeQuestionType(item.type);
+      return {
+        id: String(item.id || '').trim() || crypto.randomUUID(),
+        type: questionType,
+        prompt: String(item.prompt || '').trim(),
+        options: Array.isArray(item.options)
+          ? item.options.map((option) => String(option || '').trim()).filter(Boolean)
+          : [],
+        correctAnswers: Array.isArray(item.correctAnswers)
+          ? item.correctAnswers.map((answer) => String(answer || '').trim()).filter(Boolean)
+          : [],
+      };
+    });
+
+    if (questions.some((question) => !question.prompt || !question.correctAnswers.length)) {
+      sendJson(response, 400, { message: 'راجع نصوص الأسئلة والإجابات الصحيحة.' });
+      return;
+    }
+
+    const exams = await readExams();
+    const exam = exams.find((item) => item.id === examId);
+    if (!exam) {
+      sendJson(response, 404, { message: 'الامتحان غير موجود.' });
+      return;
+    }
+
+    exam.questions = questions;
+    await writeExams(exams);
+    sendJson(response, 200, { exam: publicExam(exam, { includeAnswers: true }) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حفظ أسئلة الامتحان.' });
+  }
+}
+
+async function deleteAdminExam(request, response, examId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const exams = await readExams();
+    const nextExams = exams.filter((exam) => exam.id !== examId);
+    if (nextExams.length === exams.length) {
+      sendJson(response, 404, { message: 'الامتحان غير موجود.' });
+      return;
+    }
+    await writeExams(nextExams);
+    sendJson(response, 200, { message: 'تم حذف الامتحان.' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف الامتحان.' });
+  }
+}
+
+async function listStudentExams(request, response, url) {
+  try {
+    const studentId = String(url.searchParams.get('studentId') || '').trim();
+    const exams = await readExams();
+    const results = await readExamResults();
+    const studentResults = results.filter((result) => result.studentId === studentId);
+    sendJson(response, 200, {
+      exams: exams.map((exam) => publicExam(exam)),
+      results: studentResults.map(publicExamResult),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الامتحانات.' });
+  }
+}
+
+function isAnswerCorrect(question, answers) {
+  const correct = (question.correctAnswers || []).map((value) =>
+    String(value || '').trim().toLowerCase()
+  );
+  const given = (Array.isArray(answers) ? answers : [answers]).map((value) =>
+    String(value || '').trim().toLowerCase()
+  );
+
+  return correct.length > 0 && given.length > 0 && correct[0] === given[0];
+}
+
+async function submitStudentExam(request, response, examId) {
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const studentId = String(payload.studentId || '').trim();
+    const answers = payload.answers && typeof payload.answers === 'object'
+      ? payload.answers
+      : {};
+
+    const exams = await readExams();
+    const exam = exams.find((item) => item.id === examId);
+    if (!exam) {
+      sendJson(response, 404, { message: 'الامتحان غير موجود.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((item) => item.id === studentId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+
+    const questions = Array.isArray(exam.questions) ? exam.questions : [];
+    const correctAnswers = questions.filter((question) =>
+      isAnswerCorrect(question, answers[question.id])
+    ).length;
+    const totalQuestions = Math.max(1, questions.length);
+    const score = Math.round((correctAnswers / totalQuestions) * 100);
+    const passed = score >= Number(exam.passScore || 60);
+    const result = {
+      id: crypto.randomUUID(),
+      examId: exam.id,
+      studentId,
+      studentName: user.fullName || '',
+      courseTitle: exam.courseTitle,
+      courseLanguage: exam.courseLanguage,
+      levelTitle: exam.levelTitle,
+      type: normalizeExamType(exam.type),
+      score,
+      totalQuestions,
+      correctAnswers,
+      passed,
+      submittedAt: new Date().toISOString(),
+    };
+
+    const results = await readExamResults();
+    results.unshift(result);
+    await writeExamResults(results);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'exam_submit',
+      label: 'إنهاء امتحان',
+      details: `${exam.title || ''} - ${score}% - ${passed ? 'ناجح' : 'لم ينجح'}`,
+    });
+    sendJson(response, 200, { result: publicExamResult(result) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال الامتحان.' });
+  }
+}
+
+async function createStudentQuestion(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const courseTitle = String(payload.courseTitle || '').trim();
+    const courseLanguage = String(payload.courseLanguage || '').trim();
+    const questionText = String(payload.question || '').trim();
+
+    if (!studentId || !courseTitle || !courseLanguage || !questionText) {
+      sendJson(response, 400, { message: 'من فضلك اكتب السؤال.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user || normalizeRole(user.role) !== 'student') {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+
+    const enrollments = Array.isArray(user.enrollments) ? user.enrollments : [];
+    const courseKey = courseKeyFor(courseLanguage, courseTitle);
+    const isEnrolled = enrollments.some(
+      (enrollment) => enrollment.courseKey === courseKey
+    );
+
+    if (!isEnrolled) {
+      sendJson(response, 403, { message: 'الكورس غير مفتوح لهذا الطالب.' });
+      return;
+    }
+
+    const questions = await readQuestions();
+    const question = {
+      id: crypto.randomUUID(),
+      studentId,
+      studentName: user.fullName || '',
+      studentPhone: user.phone || '',
+      courseTitle,
+      courseLanguage,
+      levelTitle: String(payload.levelTitle || '').trim(),
+      lectureTitle: String(payload.lectureTitle || '').trim(),
+      partTitle: String(payload.partTitle || '').trim(),
+      vimeoUrl: String(payload.vimeoUrl || '').trim(),
+      question: questionText,
+      answer: '',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      answeredAt: '',
+      answeredBy: '',
+    };
+
+    questions.unshift(question);
+    await writeQuestions(questions);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'ask_question',
+      label: 'إضافة سؤال',
+      details: `${courseLanguage} - ${courseTitle} - ${questionText}`,
+    });
+    sendJson(response, 201, { question: publicCourseQuestion(question) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال السؤال.' });
+  }
+}
+
+async function listAdminQuestions(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const questions = await readQuestions();
+    sendJson(response, 200, { questions: questions.map(publicCourseQuestion) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل أسئلة الطلاب.' });
+  }
+}
+
+async function answerQuestion(request, response, questionId) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const answer = String(payload.answer || '').trim();
+    if (!answer) {
+      sendJson(response, 400, { message: 'من فضلك اكتب الرد.' });
+      return;
+    }
+
+    const questions = await readQuestions();
+    const question = questions.find((item) => item.id === questionId);
+    if (!question) {
+      sendJson(response, 404, { message: 'السؤال غير موجود.' });
+      return;
+    }
+
+    question.answer = answer;
+    question.status = 'answered';
+    question.answeredAt = new Date().toISOString();
+    question.answeredBy = adminSession.name || 'Admin';
+
+    await writeQuestions(questions);
+    sendJson(response, 200, { question: publicCourseQuestion(question) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حفظ الرد.' });
+  }
+}
+
+async function createSubscriptionRequest(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const courseTitle = String(payload.courseTitle || '').trim();
+    const courseLanguage = String(payload.courseLanguage || '').trim();
+
+    if (!studentId || !courseTitle || !courseLanguage) {
+      sendJson(response, 400, { message: 'بيانات طلب الاشتراك غير مكتملة.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user || normalizeRole(user.role) !== 'student') {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+
+    const parts = await readCourseParts();
+    const course = parts.find(
+      (part) =>
+        (part.type || 'part') === 'course' &&
+        part.course === courseTitle &&
+        part.language === courseLanguage
+    );
+    if (!course) {
+      sendJson(response, 404, { message: 'الكورس غير موجود.' });
+      return;
+    }
+
+    const subscriptions = await readSubscriptions();
+    const existing = subscriptions.find(
+      (subscription) =>
+        subscription.studentId === studentId &&
+        subscription.courseTitle === courseTitle &&
+        subscription.courseLanguage === courseLanguage &&
+        (subscription.status || 'pending') === 'pending'
+    );
+    if (existing) {
+      sendJson(response, 200, {
+        message: 'طلب الاشتراك موجود بالفعل.',
+        subscription: publicSubscription(existing),
+      });
+      return;
+    }
+
+    const subscription = {
+      id: crypto.randomUUID(),
+      studentId,
+      studentName: user.fullName,
+      studentPhone: user.phone,
+      studentAddress: user.address || '',
+      studentJob: user.job || '',
+      studentLanguage: user.language || '',
+      courseTitle,
+      courseLanguage,
+      courseLevel: course.courseLevel || payload.courseLevel || '',
+      coursePrice:
+        (course.courseType || 'free') === 'paid'
+          ? String(course.price || payload.coursePrice || '')
+          : 'مجانا',
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      approvedAt: null,
+      approvedBy: '',
+    };
+
+    subscriptions.unshift(subscription);
+    await writeSubscriptions(subscriptions);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'subscription_request',
+      label: 'طلب شراء كورس',
+      details: `${courseLanguage} - ${courseTitle}`,
+    });
+    sendJson(response, 201, {
+      message: 'تم إرسال طلب الاشتراك.',
+      subscription: publicSubscription(subscription),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال طلب الاشتراك.' });
+  }
+}
+
+async function listAdminSubscriptions(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const subscriptions = await readSubscriptions();
+    sendJson(response, 200, {
+      subscriptions: subscriptions.map(publicSubscription),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل طلبات الاشتراك.' });
+  }
+}
+
+async function listAdminActivityLogs(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const logs = await readActivityLogs();
+    sendJson(response, 200, { logs: logs.map(publicActivityLog) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل سجل النشاط.' });
+  }
+}
+
+async function recordAppActivity(request, response) {
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const userId = String(payload.userId || '').trim();
+    const sessionId = String(payload.sessionId || '').trim() || userId;
+    const action = String(payload.action || 'activity').trim();
+    const label = String(payload.label || '').trim();
+    const details = String(payload.details || '').trim();
+
+    if (!userId || !sessionId) {
+      sendJson(response, 400, { message: 'بيانات النشاط غير مكتملة.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((item) => item.id === userId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات المستخدم غير موجودة.' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const sessions = await readAppSessions();
+    const existing = sessions.find((session) => session.sessionId === sessionId);
+    if (existing) {
+      existing.userId = userId;
+      existing.userName = user.fullName || '';
+      existing.userPhone = user.phone || '';
+      existing.lastSeenAt = now;
+    } else {
+      sessions.push({
+        id: crypto.randomUUID(),
+        sessionId,
+        userId,
+        userName: user.fullName || '',
+        userPhone: user.phone || '',
+        openedAt: now,
+        lastSeenAt: now,
+      });
+    }
+
+    await writeAppSessions(sessions.slice(-1000));
+    await recordActivity({
+      userId,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action,
+      label,
+      details,
+    });
+
+    sendJson(response, 200, { status: 'ok' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تسجيل النشاط.' });
+  }
+}
+
+async function approveSubscription(request, response, subscriptionId) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request) || '{}');
+    const paymentMethod = String(payload.paymentMethod || '').trim();
+    const paymentDate = String(payload.paymentDate || '').trim();
+    const paymentPhone = String(payload.paymentPhone || '').trim();
+    const paidAmount = String(payload.paidAmount || '').trim();
+
+    if (!paymentMethod || !paymentDate || !paymentPhone || !paidAmount) {
+      sendJson(response, 400, { message: 'من فضلك املأ بيانات الدفع كاملة.' });
+      return;
+    }
+
+    const subscriptions = await readSubscriptions();
+    const subscription = subscriptions.find((item) => item.id === subscriptionId);
+    if (!subscription) {
+      sendJson(response, 404, { message: 'طلب الاشتراك غير موجود.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === subscription.studentId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+
+    const courseKey = courseKeyFor(
+      subscription.courseLanguage,
+      subscription.courseTitle
+    );
+    const enrollments = Array.isArray(user.enrollments) ? user.enrollments : [];
+    const existingEnrollment = enrollments.find(
+      (enrollment) => enrollment.courseKey === courseKey
+    );
+    if (existingEnrollment) {
+      existingEnrollment.paymentStatus = 'paid';
+      existingEnrollment.paymentMethod = paymentMethod;
+      existingEnrollment.paymentDate = paymentDate;
+      existingEnrollment.paymentPhone = paymentPhone;
+      existingEnrollment.paidAmount = paidAmount;
+      existingEnrollment.openedBy = adminSession.name || 'Admin';
+    } else {
+      enrollments.push({
+        courseKey,
+        courseTitle: subscription.courseTitle,
+        courseLanguage: subscription.courseLanguage,
+        openedAt: new Date().toISOString(),
+        openedBy: adminSession.name || 'Admin',
+        paymentStatus: 'paid',
+        paymentMethod,
+        paymentDate,
+        paymentPhone,
+        paidAmount,
+      });
+    }
+    user.enrollments = enrollments;
+
+    subscription.status = 'approved';
+    subscription.approvedAt = new Date().toISOString();
+    subscription.approvedBy = adminSession.name || 'Admin';
+    subscription.paymentMethod = paymentMethod;
+    subscription.paymentDate = paymentDate;
+    subscription.paymentPhone = paymentPhone;
+    subscription.paidAmount = paidAmount;
+
+    await writeUsers(users);
+    await writeSubscriptions(subscriptions);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'subscription_approved',
+      label: 'تم فتح كورس مدفوع',
+      details: `${subscription.courseLanguage} - ${subscription.courseTitle} - ${paidAmount}`,
+    });
+    sendJson(response, 200, {
+      message: 'تم فتح الكورس للطالب.',
+      subscription: publicSubscription(subscription),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر اعتماد طلب الاشتراك.' });
+  }
+}
+
+async function createCoursePart(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const validationError = validateCoursePartPayload(payload);
+    if (validationError) {
+      sendJson(response, 400, { message: validationError });
+      return;
+    }
+
+    const parts = await readCourseParts();
+    const type = normalizeCourseNodeType(payload.type);
+    const coursePart = {
+      id: crypto.randomUUID(),
+      type,
+      language: String(payload.language).trim(),
+      course: String(payload.course).trim(),
+      level: String(payload.level || '').trim(),
+      lecture: String(payload.lecture || '').trim(),
+      part: String(payload.part || '').trim(),
+      vimeoUrl: String(payload.vimeoUrl || '').trim(),
+      courseType: normalizeCoursePaymentType(payload.courseType),
+      price: String(payload.price || '').trim(),
+      courseLevel: normalizeCourseLevel(payload.courseLevel),
+      duration: String(payload.duration || '').trim(),
+      imageDataUrl: String(payload.imageDataUrl || '').trim(),
+      learningOutcomes: type === 'course'
+        ? normalizeLearningOutcomes(payload.learningOutcomes)
+        : [],
+      createdAt: new Date().toISOString(),
+      createdBy: adminSession.name || 'Admin',
+    };
+
+    parts.push(coursePart);
+    await writeCourseParts(parts);
+    sendJson(response, 201, { part: publicCoursePart(coursePart) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إنشاء جزء الكورس.' });
+  }
+}
+
+async function createAdminBook(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const isFreeValue = payload.isFree;
+    const isFree = isFreeValue === undefined
+      ? true
+      : isFreeValue === true || String(isFreeValue).toLowerCase() === 'true';
+
+    const book = {
+      id: crypto.randomUUID(),
+      title: String(payload.title).trim(),
+      subtitle: String(payload.subtitle).trim(),
+      course: String(payload.course || '').trim(),
+      language: String(payload.language || '').trim(),
+      isFree,
+      url: String(payload.url).trim(),
+      createdAt: new Date().toISOString(),
+      createdBy: adminSession.name || 'Admin',
+    };
+
+    const books = await readBooks();
+    books.push(book);
+    await writeBooks(books);
+    sendJson(response, 201, { book });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إنشاء الكتاب.' });
+  }
+}
+
+async function updateCoursePart(request, response, partId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const validationError = validateCoursePartPayload(payload);
+    if (validationError) {
+      sendJson(response, 400, { message: validationError });
+      return;
+    }
+
+    const parts = await readCourseParts();
+    const index = parts.findIndex((part) => part.id === partId);
+    if (index === -1) {
+      sendJson(response, 404, { message: 'جزء الكورس غير موجود.' });
+      return;
+    }
+
+    const current = parts[index];
+    const type = normalizeCourseNodeType(payload.type || current.type);
+    const previous = {
+      language: current.language,
+      course: current.course,
+      level: current.level || '',
+      lecture: current.lecture || '',
+    };
+    const updated = {
+      ...current,
+      type,
+      language: String(payload.language).trim(),
+      course: String(payload.course).trim(),
+      level: String(payload.level || '').trim(),
+      lecture: String(payload.lecture || '').trim(),
+      part: String(payload.part || '').trim(),
+      vimeoUrl: String(payload.vimeoUrl || '').trim(),
+      courseType: normalizeCoursePaymentType(payload.courseType),
+      price: String(payload.price || '').trim(),
+      courseLevel: normalizeCourseLevel(payload.courseLevel || current.courseLevel),
+      duration: String(payload.duration || '').trim(),
+      imageDataUrl: String(payload.imageDataUrl || current.imageDataUrl || '').trim(),
+      learningOutcomes: type === 'course'
+        ? normalizeLearningOutcomes(payload.learningOutcomes ?? current.learningOutcomes)
+        : [],
+    };
+
+    parts[index] = updated;
+
+    const isSameCourse = (part) =>
+      part.language === previous.language && part.course === previous.course;
+    if (type === 'course') {
+      for (const part of parts) {
+        if (part.id !== partId && isSameCourse(part)) {
+          part.language = updated.language;
+          part.course = updated.course;
+        }
+      }
+    }
+    if (type === 'level') {
+      for (const part of parts) {
+        if (part.id !== partId && isSameCourse(part) && part.level === previous.level) {
+          part.level = updated.level;
+        }
+      }
+    }
+    if (type === 'lecture') {
+      for (const part of parts) {
+        if (
+          part.id !== partId &&
+          isSameCourse(part) &&
+          part.level === previous.level &&
+          part.lecture === previous.lecture
+        ) {
+          part.lecture = updated.lecture;
+        }
+      }
+    }
+
+    await writeCourseParts(parts);
+    sendJson(response, 200, { part: publicCoursePart(updated) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تعديل الكورس.' });
+  }
+}
+
+async function deleteCoursePart(request, response, partId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const parts = await readCourseParts();
+    const current = parts.find((part) => part.id === partId);
+    if (!current) {
+      sendJson(response, 404, { message: 'جزء الكورس غير موجود.' });
+      return;
+    }
+
+    let nextParts = parts.filter((part) => part.id !== partId);
+    if ((current.type || 'part') === 'course') {
+      nextParts = parts.filter(
+        (part) =>
+          part.language !== current.language || part.course !== current.course
+      );
+    }
+    if ((current.type || 'part') === 'level') {
+      nextParts = parts.filter(
+        (part) =>
+          part.id === partId ||
+          part.language !== current.language ||
+          part.course !== current.course ||
+          part.level !== current.level
+      );
+      nextParts = nextParts.filter((part) => part.id !== partId);
+    }
+    if ((current.type || 'part') === 'lecture') {
+      nextParts = parts.filter(
+        (part) =>
+          part.id === partId ||
+          part.language !== current.language ||
+          part.course !== current.course ||
+          part.level !== current.level ||
+          part.lecture !== current.lecture
+      );
+      nextParts = nextParts.filter((part) => part.id !== partId);
+    }
+
+    await writeCourseParts(nextParts);
+    sendJson(response, 200, { message: 'تم حذف جزء الكورس.' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف جزء الكورس.' });
+  }
+}
+
+async function updateAdminBook(request, response, bookId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const books = await readBooks();
+    const index = books.findIndex((book) => book.id === bookId);
+    if (index === -1) {
+      sendJson(response, 404, { message: 'الكتاب غير موجود.' });
+      return;
+    }
+
+    const current = books[index];
+    const isFreeValue = payload.isFree;
+    const isFree = isFreeValue === undefined
+      ? current.isFree
+      : isFreeValue === true || String(isFreeValue).toLowerCase() === 'true';
+
+    const updated = {
+      ...current,
+      title: String(payload.title ?? current.title).trim(),
+      subtitle: String(payload.subtitle ?? current.subtitle).trim(),
+      course: String(payload.course ?? current.course).trim(),
+      language: String(payload.language ?? current.language ?? '').trim(),
+      isFree,
+      url: String(payload.url ?? current.url).trim(),
+    };
+
+    books[index] = updated;
+    await writeBooks(books);
+    sendJson(response, 200, { book: updated });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تعديل الكتاب.' });
+  }
+}
+
+async function deleteAdminBook(request, response, bookId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const books = await readBooks();
+    const current = books.find((book) => book.id === bookId);
+    if (!current) {
+      sendJson(response, 404, { message: 'الكتاب غير موجود.' });
+      return;
+    }
+
+    const nextBooks = books.filter((book) => book.id !== bookId);
+    await writeBooks(nextBooks);
+    sendJson(response, 200, { message: 'تم حذف الكتاب.' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف الكتاب.' });
+  }
+}
+
+async function listAdminUsers(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const users = await readUsers();
+    sendJson(response, 200, {
+      users: [systemAdminUser(), ...users.map(publicUser)],
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل اليوزرز.' });
+  }
+}
+
+async function createAdminUser(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const validationError = validateUserPayload(payload, {
+      requirePassword: true,
+    });
+    if (validationError) {
+      sendJson(response, 400, { message: validationError });
+      return;
+    }
+
+    const users = await readUsers();
+    const normalizedPhone = String(payload.phone).replace(/\s/g, '');
+    if (users.some((user) => user.phone === normalizedPhone)) {
+      sendJson(response, 409, {
+        message: 'This phone number already has an account.',
+      });
+      return;
+    }
+
+    const user = buildUserFromPayload(payload, {
+      createdBy: adminSession.name || 'Admin',
+    });
+    user.phone = normalizedPhone;
+    users.push(user);
+    await writeUsers(users);
+    sendJson(response, 201, { user: publicUser(user) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إضافة اليوزر.' });
+  }
+}
+
+async function updateAdminUser(request, response, userId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === userId);
+
+    if (!user) {
+      sendJson(response, 404, { message: 'اليوزر غير موجود.' });
+      return;
+    }
+
+    const validationError = validateUserUpdatePayload(payload);
+    if (validationError) {
+      sendJson(response, 400, { message: validationError });
+      return;
+    }
+
+    if (payload.phone) {
+      const normalizedPhone = String(payload.phone).replace(/\s/g, '');
+      const phoneExists = users.some(
+        (currentUser) =>
+          currentUser.id !== userId && currentUser.phone === normalizedPhone
+      );
+      if (phoneExists) {
+        sendJson(response, 409, {
+          message: 'This phone number already has an account.',
+        });
+        return;
+      }
+      user.phone = normalizedPhone;
+    }
+
+    for (const field of [
+      'fullName',
+      'address',
+      'job',
+      'language',
+      'learningReason',
+      'referralReason',
+    ]) {
+      if (payload[field] !== undefined) {
+        user[field] = String(payload[field]).trim();
+      }
+    }
+
+    if (payload.status !== undefined) {
+      user.status = payload.status === 'suspended' ? 'suspended' : 'active';
+    }
+
+    if (payload.role !== undefined) {
+      user.role = normalizeRole(payload.role);
+    }
+
+    if (payload.password) {
+      user.passwordHash = hashPassword(String(payload.password));
+    }
+
+    await writeUsers(users);
+    sendJson(response, 200, { user: publicUser(user) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تعديل بيانات اليوزر.' });
+  }
+}
+
+async function deleteAdminUser(request, response, userId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const users = await readUsers();
+    const nextUsers = users.filter((user) => user.id !== userId);
+    if (nextUsers.length === users.length) {
+      sendJson(response, 404, { message: 'اليوزر غير موجود.' });
+      return;
+    }
+
+    await writeUsers(nextUsers);
+    sendJson(response, 200, { message: 'تم حذف اليوزر.' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف اليوزر.' });
+  }
+}
+
+const server = http.createServer(async (request, response) => {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+
+  if (request.method === 'OPTIONS') {
+    sendJson(response, 204, {});
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/health') {
+    sendJson(response, 200, { status: 'ok' });
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/register') {
+    await register(request, response);
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/login') {
+    await login(request, response);
+    return;
+  }
+
+  const publicUserMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
+  if (publicUserMatch && request.method === 'GET') {
+    await getPublicUser(request, response, publicUserMatch[1]);
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/admin/login') {
+    await adminLogin(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/courses') {
+    await listPublicCourses(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/books') {
+    await listBooks(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/notifications') {
+    await listNotifications(request, response);
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/devices/register') {
+    await registerDeviceToken(request, response);
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/app/activity') {
+    await recordAppActivity(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/course-content') {
+    await getStudentCourseContent(request, response, url);
+    return;
+  }
+
+  if (url.pathname === '/api/questions') {
+    if (request.method === 'GET') {
+      await listStudentQuestions(request, response, url);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createStudentQuestion(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/watch-progress') {
+    if (request.method === 'GET') {
+      await listStudentWatchProgress(request, response, url);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await completePartWatch(request, response);
+      return;
+    }
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/subscriptions') {
+    await createSubscriptionRequest(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/admin/stats') {
+    await adminStats(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/admin/subscriptions') {
+    await listAdminSubscriptions(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/admin/questions') {
+    await listAdminQuestions(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/admin/watch-report') {
+    await listAdminWatchReport(request, response, url);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/admin/activity-logs') {
+    await listAdminActivityLogs(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/admin/exam-results') {
+    await listAdminExamResults(request, response);
+    return;
+  }
+
+  if (url.pathname === '/api/admin/exams') {
+    if (request.method === 'GET') {
+      await listAdminExams(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createAdminExam(request, response);
+      return;
+    }
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/exams') {
+    await listStudentExams(request, response, url);
+    return;
+  }
+
+  if (url.pathname === '/api/admin/notifications') {
+    if (request.method === 'GET') {
+      await listAdminNotifications(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createNotification(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/admin/users') {
+    if (request.method === 'GET') {
+      await listAdminUsers(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createAdminUser(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/admin/courses') {
+    if (request.method === 'GET') {
+      await listCourseParts(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createCoursePart(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/admin/books') {
+    if (request.method === 'GET') {
+      await listAdminBooks(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createAdminBook(request, response);
+      return;
+    }
+  }
+
+  const userMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+  if (userMatch && request.method === 'PATCH') {
+    await updateAdminUser(request, response, userMatch[1]);
+    return;
+  }
+
+  if (userMatch && request.method === 'DELETE') {
+    await deleteAdminUser(request, response, userMatch[1]);
+    return;
+  }
+
+  const userUpdateActionMatch = url.pathname.match(
+    /^\/api\/admin\/users\/([^/]+)\/update$/
+  );
+  if (userUpdateActionMatch && request.method === 'POST') {
+    await updateAdminUser(request, response, userUpdateActionMatch[1]);
+    return;
+  }
+
+  const userDeleteActionMatch = url.pathname.match(
+    /^\/api\/admin\/users\/([^/]+)\/delete$/
+  );
+  if (userDeleteActionMatch && request.method === 'POST') {
+    await deleteAdminUser(request, response, userDeleteActionMatch[1]);
+    return;
+  }
+
+  const courseDeleteActionMatch = url.pathname.match(
+    /^\/api\/admin\/courses\/([^/]+)\/delete$/
+  );
+  if (courseDeleteActionMatch && request.method === 'POST') {
+    await deleteCoursePart(request, response, courseDeleteActionMatch[1]);
+    return;
+  }
+
+  const courseUpdateActionMatch = url.pathname.match(
+    /^\/api\/admin\/courses\/([^/]+)\/update$/
+  );
+  if (courseUpdateActionMatch && request.method === 'POST') {
+    await updateCoursePart(request, response, courseUpdateActionMatch[1]);
+    return;
+  }
+
+  const bookUpdateActionMatch = url.pathname.match(
+    /^\/api\/admin\/books\/([^/]+)$/
+  );
+  if (bookUpdateActionMatch && request.method === 'POST') {
+    await updateAdminBook(request, response, bookUpdateActionMatch[1]);
+    return;
+  }
+
+  const bookDeleteActionMatch = url.pathname.match(
+    /^\/api\/admin\/books\/([^/]+)\/delete$/
+  );
+  if (bookDeleteActionMatch && request.method === 'POST') {
+    await deleteAdminBook(request, response, bookDeleteActionMatch[1]);
+    return;
+  }
+
+  const examDeleteActionMatch = url.pathname.match(
+    /^\/api\/admin\/exams\/([^/]+)\/delete$/
+  );
+  if (examDeleteActionMatch && request.method === 'POST') {
+    await deleteAdminExam(request, response, examDeleteActionMatch[1]);
+    return;
+  }
+
+  const examQuestionsActionMatch = url.pathname.match(
+    /^\/api\/admin\/exams\/([^/]+)\/questions$/
+  );
+  if (examQuestionsActionMatch && request.method === 'POST') {
+    await updateAdminExamQuestions(request, response, examQuestionsActionMatch[1]);
+    return;
+  }
+
+  const examSubmitActionMatch = url.pathname.match(
+    /^\/api\/exams\/([^/]+)\/submit$/
+  );
+  if (examSubmitActionMatch && request.method === 'POST') {
+    await submitStudentExam(request, response, examSubmitActionMatch[1]);
+    return;
+  }
+
+  const subscriptionApproveActionMatch = url.pathname.match(
+    /^\/api\/admin\/subscriptions\/([^/]+)\/approve$/
+  );
+  if (subscriptionApproveActionMatch && request.method === 'POST') {
+    await approveSubscription(request, response, subscriptionApproveActionMatch[1]);
+    return;
+  }
+
+  const questionAnswerActionMatch = url.pathname.match(
+    /^\/api\/admin\/questions\/([^/]+)\/answer$/
+  );
+  if (questionAnswerActionMatch && request.method === 'POST') {
+    await answerQuestion(request, response, questionAnswerActionMatch[1]);
+    return;
+  }
+
+  sendJson(response, 404, { message: 'Route not found.' });
+});
+
+server.listen(port, host, () => {
+  console.log(`Lingova backend is running on http://${host}:${port}`);
+  console.log(`Admin login: ${adminEmail} / ${adminPassword}`);
+});

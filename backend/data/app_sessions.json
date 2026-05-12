@@ -1,0 +1,47 @@
+[
+  {
+    "id": "4f320aff-32d4-431d-9e59-3849bbb0a04a",
+    "sessionId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc-1778543200303481",
+    "userId": "6f441ae6-e95b-4e6a-996c-d8c655eee3bc",
+    "userName": "Gamila Ahmed",
+    "userPhone": "01204446255",
+    "openedAt": "2026-05-11T23:46:40.320Z",
+    "lastSeenAt": "2026-05-11T23:54:44.152Z"
+  },
+  {
+    "id": "29f32a04-6e36-488b-b987-f0d753f0a5bd",
+    "sessionId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae-1778543718739744",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "openedAt": "2026-05-11T23:55:18.790Z",
+    "lastSeenAt": "2026-05-11T23:56:35.715Z"
+  },
+  {
+    "id": "b6621734-b3aa-4597-8b6e-c27fd9a50897",
+    "sessionId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae-1778613335100156",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "openedAt": "2026-05-12T19:15:35.152Z",
+    "lastSeenAt": "2026-05-12T19:25:49.665Z"
+  },
+  {
+    "id": "c832074a-7df5-4a95-bf69-11bb83e566ed",
+    "sessionId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae-1778614706887651",
+    "userId": "0d4e2c90-a44b-4f34-a1e9-7bf9ea5296ae",
+    "userName": "مروان أحمد",
+    "userPhone": "01204441755",
+    "openedAt": "2026-05-12T19:38:27.041Z",
+    "lastSeenAt": "2026-05-12T19:39:08.810Z"
+  },
+  {
+    "id": "a49487c9-bdd7-475d-9c8e-af0dcae4d9f2",
+    "sessionId": "712ab1a8-03ae-4736-b66b-e231e7db8e38-1778615635304427",
+    "userId": "712ab1a8-03ae-4736-b66b-e231e7db8e38",
+    "userName": "مستخدم تجريبي",
+    "userPhone": "01145555433",
+    "openedAt": "2026-05-12T19:53:55.299Z",
+    "lastSeenAt": "2026-05-12T19:57:22.141Z"
+  }
+]
