@@ -23,9 +23,6 @@ const examsFile = path.join(dataDir, 'exams.json');
 const examResultsFile = path.join(dataDir, 'exam_results.json');
 const activityLogsFile = path.join(dataDir, 'activity_logs.json');
 const appSessionsFile = path.join(dataDir, 'app_sessions.json');
-const firebaseServiceAccountPath =
-  process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-  path.join(__dirname, 'firebase-service-account.json');
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@lingova.com';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const adminSessions = new Map();
@@ -456,26 +453,25 @@ function getFirebaseMessaging() {
   }
 
   firebaseMessaging = null;
+
   if (!firebaseAdmin) {
     return firebaseMessaging;
   }
 
   try {
     if (!firebaseAdmin.apps.length) {
-      if (!fsSync.existsSync(firebaseServiceAccountPath)) {
-        return firebaseMessaging;
-      }
-
-      const serviceAccount = JSON.parse(
-        fsSync.readFileSync(firebaseServiceAccountPath, 'utf8')
-      );
       firebaseAdmin.initializeApp({
-        credential: firebaseAdmin.credential.cert(serviceAccount),
+        credential: firebaseAdmin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+        }),
       });
     }
 
     firebaseMessaging = firebaseAdmin.messaging();
-  } catch {
+  } catch (error) {
+    console.log('Firebase init error:', error.message);
     firebaseMessaging = null;
   }
 
