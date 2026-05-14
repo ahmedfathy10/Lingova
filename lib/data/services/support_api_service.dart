@@ -13,6 +13,7 @@ class SupportApiService {
 
     final response = await getJson(uri);
     final json = _readJson(response.body);
+
     if (response.statusCode == 200) {
       final messages = json['messages'] as List? ?? const [];
       return messages
@@ -37,6 +38,7 @@ class SupportApiService {
     );
 
     final json = _readJson(response.body);
+
     if (response.statusCode == 201) {
       return SupportMessage.fromJson(
         Map<String, dynamic>.from(json['message'] as Map? ?? const {}),
@@ -51,7 +53,9 @@ class SupportApiService {
       Uri.parse('${ApiConfig.baseUrl}/api/admin/support-messages'),
       headers: _headers(token),
     );
+
     final json = _readJson(response.body);
+
     if (response.statusCode == 200) {
       final messages = json['messages'] as List? ?? const [];
       return messages
@@ -63,21 +67,23 @@ class SupportApiService {
     throw AuthApiException(_readMessage(json, response.statusCode));
   }
 
-  Future<SupportMessage> answerSupportMessage(
-    String token,
-    String messageId,
-    String answer,
-  ) async {
+  Future<SupportMessage> sendAdminMessage({
+    required String token,
+    required String studentId,
+    required String message,
+  }) async {
     final response = await postJson(
-      Uri.parse(
-        '${ApiConfig.baseUrl}/api/admin/support-messages/$messageId/answer',
-      ),
-      {'answer': answer},
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/support-messages'),
+      {
+        'studentId': studentId,
+        'message': message,
+      },
       headers: _headers(token),
     );
 
     final json = _readJson(response.body);
-    if (response.statusCode == 200) {
+
+    if (response.statusCode == 201) {
       return SupportMessage.fromJson(
         Map<String, dynamic>.from(json['message'] as Map? ?? const {}),
       );
@@ -86,28 +92,22 @@ class SupportApiService {
     throw AuthApiException(_readMessage(json, response.statusCode));
   }
 
-  Future<SupportMessage> sendAdminMessage({
+  Future<void> markAdminMessagesRead({
     required String token,
-    required String studentPhone,
-    required String message,
+    required String studentId,
   }) async {
     final response = await postJson(
-      Uri.parse('${ApiConfig.baseUrl}/api/admin/support-messages'),
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/support-messages/read'),
       {
-        'studentPhone': studentPhone,
-        'message': message,
+        'studentId': studentId,
       },
       headers: _headers(token),
     );
 
-    final json = _readJson(response.body);
-    if (response.statusCode == 201) {
-      return SupportMessage.fromJson(
-        Map<String, dynamic>.from(json['message'] as Map? ?? const {}),
-      );
+    if (response.statusCode != 200) {
+      final json = _readJson(response.body);
+      throw AuthApiException(_readMessage(json, response.statusCode));
     }
-
-    throw AuthApiException(_readMessage(json, response.statusCode));
   }
 
   Map<String, String> _headers(String token) {
@@ -124,9 +124,11 @@ class SupportApiService {
 
   String _readMessage(Map<String, dynamic> json, int statusCode) {
     final message = json['message']?.toString();
+
     if (message != null && message.isNotEmpty) {
       return message;
     }
+
     return 'حدث خطأ غير متوقع.';
   }
 }
