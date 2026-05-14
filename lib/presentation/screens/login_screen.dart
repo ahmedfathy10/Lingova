@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../data/models/login_request.dart';
 import '../../data/services/auth_api_service.dart';
+import '../../data/services/auth_storage_service.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/auth_header.dart';
 import 'main_screen.dart';
@@ -45,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
+      await AuthStorageService.saveUser(user);
       await _showSuccessDialog();
 
       if (!mounted) return;

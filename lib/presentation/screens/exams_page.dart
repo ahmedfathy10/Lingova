@@ -5,6 +5,7 @@ import '../../data/models/auth_user.dart';
 import '../../data/models/exam.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/exam_api_service.dart';
+import 'certificate_page.dart';
 
 class ExamsPage extends StatefulWidget {
   final AuthUser? user;
@@ -245,6 +246,22 @@ class _ExamCard extends StatelessWidget {
                 text: '${exam.durationMinutes} دقيقة',
               ),
               const Spacer(),
+              if (result != null && exam.type == 'level_final')
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => CertificatePage(result: result!),
+                      ),
+                    );
+                  },
+                  icon: Icon(
+                    Icons.workspace_premium_rounded,
+                    color: AppColors.orange,
+                  ),
+                  label: const Text('الشهادة'),
+                ),
+              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: onStart,
                 icon: Icon(
@@ -315,7 +332,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text(result.passed ? 'ناجح' : 'حاول مرة أخرى'),
+          title: Text(result.passed ? 'ناجح' : 'انتهى الاختبار'),
           content: Text(
             'درجتك ${result.score}% - ${result.correctAnswers}/${result.totalQuestions}',
             textAlign: TextAlign.right,
@@ -328,7 +345,16 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
           ],
         ),
       );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        if (widget.exam.type == 'level_final') {
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => CertificatePage(result: result)),
+          );
+        } else {
+          _showMessage('هذا الكويز لا يصدر له شهادة رسمية. تم حفظ نتيجتك.');
+        }
+        if (mounted) Navigator.of(context).pop();
+      }
     } on AuthApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);

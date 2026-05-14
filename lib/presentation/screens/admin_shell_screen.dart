@@ -6,6 +6,7 @@ import '../../data/models/admin_book.dart';
 import '../../data/models/admin_course_part.dart';
 import '../../data/models/admin_subscription_request.dart';
 import '../../data/models/admin_user.dart';
+import '../../data/models/support_message.dart';
 import '../../data/models/course_question.dart';
 import '../../data/models/exam.dart';
 import '../../data/models/watch_progress_record.dart';
@@ -14,16 +15,12 @@ import '../../data/services/admin_api_service.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/course_image_picker.dart';
 import '../../data/services/exam_api_service.dart';
+import '../../data/services/support_api_service.dart';
 import '../../data/services/text_file_downloader.dart';
 import '../../data/services/watch_progress_api_service.dart';
 import 'admin_login_screen.dart';
+import 'certificate_page.dart';
 import 'book_viewer_screen.dart';
-import '../../data/services/auth_api_service.dart';
-import '../../data/services/course_image_picker.dart';
-import '../../data/services/exam_api_service.dart';
-import '../../data/services/text_file_downloader.dart';
-import '../../data/services/watch_progress_api_service.dart';
-import 'admin_login_screen.dart';
 
 ImageProvider<Object>? _courseImageProvider(String imageDataUrl) {
   if (imageDataUrl.isEmpty) {
@@ -93,6 +90,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           label: Text('تقارير الامتحانات'),
         ),
         NavigationDrawerDestination(
+          icon: Icon(Icons.auto_stories_outlined),
+          selectedIcon: Icon(Icons.auto_stories_rounded),
+          label: Text('الشهادات'),
+        ),
+        NavigationDrawerDestination(
           icon: Icon(Icons.video_library_outlined),
           selectedIcon: Icon(Icons.video_library_rounded),
           label: Text('الكورسات'),
@@ -106,6 +108,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           icon: Icon(Icons.forum_outlined),
           selectedIcon: Icon(Icons.forum_rounded),
           label: Text('الأسئلة'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.support_agent_outlined),
+          selectedIcon: Icon(Icons.support_agent_rounded),
+          label: Text('الشات'),
         ),
         NavigationDrawerDestination(
           icon: Icon(Icons.notifications_outlined),
@@ -125,9 +132,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       AdminSubscriptionsPage(session: widget.session),
       AdminExamsPage(session: widget.session),
       AdminExamReportsPage(session: widget.session),
+      AdminCertificatesPage(session: widget.session),
       AdminCoursesPage(session: widget.session),
       AdminBooksPage(session: widget.session),
       AdminQuestionsPage(session: widget.session),
+      AdminSupportRequestsPage(session: widget.session),
       AdminNotificationsPage(session: widget.session),
     ];
     final isWide = MediaQuery.sizeOf(context).width >= 850;
@@ -136,11 +145,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       appBar: AppBar(
         title: const Text('لوحة تحكم Lingova'),
         leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
           ),
+        ),
         actions: [
           IconButton(
             tooltip: 'تسجيل خروج',
@@ -195,6 +204,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   label: Text('تقارير الامتحانات'),
                 ),
                 NavigationRailDestination(
+                  icon: Icon(Icons.auto_stories_outlined),
+                  selectedIcon: Icon(Icons.auto_stories_rounded),
+                  label: Text('الشهادات'),
+                ),
+                NavigationRailDestination(
                   icon: Icon(Icons.video_library_outlined),
                   selectedIcon: Icon(Icons.video_library_rounded),
                   label: Text('الكورسات'),
@@ -208,6 +222,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   icon: Icon(Icons.forum_outlined),
                   selectedIcon: Icon(Icons.forum_rounded),
                   label: Text('الأسئلة'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.support_agent_outlined),
+                  selectedIcon: Icon(Icons.support_agent_rounded),
+                  label: Text('الشات'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.notifications_outlined),
@@ -277,35 +296,40 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final columns = constraints.maxWidth >= 900 ? 4 : 2;
-                  return GridView.count(
-                    crossAxisCount: columns,
+                  final firstCards = [
+                    _MetricCard(
+                      title: 'الطلاب المسجلين',
+                      value: stats.studentsCount.toString(),
+                      icon: Icons.school_rounded,
+                    ),
+                    _MetricCard(
+                      title: 'تسجيلات الكورسات',
+                      value: stats.courseRegistrationsCount.toString(),
+                      icon: Icons.assignment_turned_in_rounded,
+                    ),
+                    _MetricCard(
+                      title: 'الكورسات المتاحة',
+                      value: stats.coursesCount.toString(),
+                      icon: Icons.menu_book_rounded,
+                    ),
+                    _MetricCard(
+                      title: 'دخول معلق',
+                      value: stats.suspendedUsersCount.toString(),
+                      icon: Icons.block_rounded,
+                    ),
+                  ];
+                  return GridView.builder(
+                    padding: EdgeInsets.zero,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: columns == 4 ? 0.8 : 0.6,
-                    children: [
-                      _MetricCard(
-                        title: 'الطلاب المسجلين',
-                        value: stats.studentsCount.toString(),
-                        icon: Icons.school_rounded,
-                      ),
-                      _MetricCard(
-                        title: 'تسجيلات الكورسات',
-                        value: stats.courseRegistrationsCount.toString(),
-                        icon: Icons.assignment_turned_in_rounded,
-                      ),
-                      _MetricCard(
-                        title: 'الكورسات المتاحة',
-                        value: stats.coursesCount.toString(),
-                        icon: Icons.menu_book_rounded,
-                      ),
-                      _MetricCard(
-                        title: 'دخول معلق',
-                        value: stats.suspendedUsersCount.toString(),
-                        icon: Icons.block_rounded,
-                      ),
-                    ],
+                    itemCount: firstCards.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      mainAxisExtent: 140,
+                    ),
+                    itemBuilder: (context, index) => firstCards[index],
                   );
                 },
               ),
@@ -313,40 +337,45 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final columns = constraints.maxWidth >= 900 ? 5 : 2;
-                  return GridView.count(
-                    crossAxisCount: columns,
+                  final secondCards = [
+                    _MetricCard(
+                      title: 'إجمالي الإيراد',
+                      value: _money(stats.revenue.total),
+                      icon: Icons.payments_rounded,
+                    ),
+                    _MetricCard(
+                      title: 'إيراد اليوم',
+                      value: _money(stats.revenue.today),
+                      icon: Icons.today_rounded,
+                    ),
+                    _MetricCard(
+                      title: 'إيراد الشهر',
+                      value: _money(stats.revenue.month),
+                      icon: Icons.calendar_month_rounded,
+                    ),
+                    _MetricCard(
+                      title: 'فاتحين الآن',
+                      value: stats.activity.activeNowCount.toString(),
+                      icon: Icons.online_prediction_rounded,
+                    ),
+                    _MetricCard(
+                      title: 'فتح التطبيق اليوم',
+                      value: stats.activity.opensTodayCount.toString(),
+                      icon: Icons.mobile_friendly_rounded,
+                    ),
+                  ];
+                  return GridView.builder(
+                    padding: EdgeInsets.zero,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: columns == 5 ? 1.25 : 1.15,
-                    children: [
-                      _MetricCard(
-                        title: 'إجمالي الإيراد',
-                        value: _money(stats.revenue.total),
-                        icon: Icons.payments_rounded,
-                      ),
-                      _MetricCard(
-                        title: 'إيراد اليوم',
-                        value: _money(stats.revenue.today),
-                        icon: Icons.today_rounded,
-                      ),
-                      _MetricCard(
-                        title: 'إيراد الشهر',
-                        value: _money(stats.revenue.month),
-                        icon: Icons.calendar_month_rounded,
-                      ),
-                      _MetricCard(
-                        title: 'فاتحين الآن',
-                        value: stats.activity.activeNowCount.toString(),
-                        icon: Icons.online_prediction_rounded,
-                      ),
-                      _MetricCard(
-                        title: 'فتح التطبيق اليوم',
-                        value: stats.activity.opensTodayCount.toString(),
-                        icon: Icons.mobile_friendly_rounded,
-                      ),
-                    ],
+                    itemCount: secondCards.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      mainAxisExtent: 140,
+                    ),
+                    itemBuilder: (context, index) => secondCards[index],
                   );
                 },
               ),
@@ -1911,6 +1940,178 @@ class _ExamResultCard extends StatelessWidget {
   }
 }
 
+class AdminCertificatesPage extends StatefulWidget {
+  final AdminSession session;
+
+  const AdminCertificatesPage({super.key, required this.session});
+
+  @override
+  State<AdminCertificatesPage> createState() => _AdminCertificatesPageState();
+}
+
+class _AdminCertificatesPageState extends State<AdminCertificatesPage> {
+  final _service = ExamApiService();
+  late Future<ExamReport> _reportFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportFuture = _service.getAdminExamReport(widget.session.token);
+  }
+
+  void _refresh() {
+    setState(() {
+      _reportFuture = _service.getAdminExamReport(widget.session.token);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ExamReport>(
+      future: _reportFuture,
+      builder: (context, snapshot) {
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        final report = snapshot.data;
+        final finalResults = report?.results
+                .where((result) => result.type == 'level_final')
+                .toList() ??
+            const <ExamResult>[];
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+          children: [
+            _PageTitle(
+              title: 'الشهادات',
+              subtitle: 'عرض وتحميل شهادات امتحانات نهاية المستوى.',
+              action: _ToolbarButton(
+                onPressed: isLoading ? null : _refresh,
+                icon: const Icon(Icons.refresh_rounded),
+                label: 'تحديث',
+                filled: true,
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (snapshot.hasError)
+              const _ErrorState(message: 'تعذر تحميل بيانات الشهادات.')
+            else if (finalResults.isEmpty)
+              _Panel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'لا توجد نتائج امتحانات نهاية المستوى للشهادات حتى الآن.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'يمكنك تحميل شهادة كل طالب عن طريق الضغط على زر التحميل في أي نتيجة مؤهلة.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...finalResults.map(
+                (result) => _AdminCertificateCard(result: result),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AdminCertificateCard extends StatelessWidget {
+  final ExamResult result;
+
+  const _AdminCertificateCard({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = result.passed ? Colors.green : Colors.redAccent;
+    final studentName = result.studentName.isEmpty ? 'طالب' : result.studentName;
+    final courseTitle = result.courseTitle.isEmpty ? '-' : result.courseTitle;
+    final levelTitle = result.levelTitle.isEmpty ? '-' : result.levelTitle;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _Panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                _StatusPill(text: result.statusLabel, color: statusColor),
+                Text(
+                  studentName,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$courseTitle • $levelTitle • ${result.typeLabel}',
+              textAlign: TextAlign.right,
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              textDirection: TextDirection.rtl,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StatusPill(
+                  text: 'النتيجة ${result.score}%',
+                  color: statusColor,
+                ),
+                _StatusPill(
+                  text:
+                      'الصحيح ${result.correctAnswers}/${result.totalQuestions}',
+                  color: AppColors.orange,
+                ),
+                if (result.submittedAtLabel.isNotEmpty)
+                  _StatusPill(
+                    text: result.submittedAtLabel,
+                    color: AppColors.orange,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CertificatePage(result: result),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.download_rounded),
+              label: const Text('تحميل الشهادة'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AdminExamCard extends StatelessWidget {
   final CourseExam exam;
   final VoidCallback onOpen;
@@ -3424,6 +3625,535 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
+class AdminSupportRequestsPage extends StatefulWidget {
+  final AdminSession session;
+
+  const AdminSupportRequestsPage({super.key, required this.session});
+
+  @override
+  State<AdminSupportRequestsPage> createState() => _AdminSupportRequestsPageState();
+}
+
+class _AdminSupportRequestsPageState extends State<AdminSupportRequestsPage> {
+  final _service = SupportApiService();
+  late Future<List<SupportMessage>> _messagesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _messagesFuture = _loadMessages();
+  }
+
+  Future<List<SupportMessage>> _loadMessages() async {
+    final messages = await _service.getAdminMessages(widget.session.token);
+    return messages.where((m) => m.message.trim().isNotEmpty).toList();
+  }
+
+  void _refresh() {
+    setState(() {
+      _messagesFuture = _loadMessages();
+    });
+  }
+
+  Future<void> _sendAdminMessage() async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => _AdminMessageDialog(token: widget.session.token),
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    try {
+      await SupportApiService().sendAdminMessage(
+        token: widget.session.token,
+        studentPhone: result['phone'] ?? '',
+        message: result['message'] ?? '',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم إرسال الرسالة للطالب.', textAlign: TextAlign.right),
+        ),
+      );
+      _refresh();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString(), textAlign: TextAlign.right)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<SupportMessage>>(
+      future: _messagesFuture,
+      builder: (context, snapshot) {
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        final messages = snapshot.data ?? const <SupportMessage>[];
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+          children: [
+            _PageTitle(
+              title: 'الشات',
+              subtitle: 'طلبات الدعم والمحادثات الواردة من الطلاب.',
+              action: Wrap(
+                textDirection: TextDirection.rtl,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _ToolbarButton(
+                    onPressed: isLoading ? null : _refresh,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: 'تحديث',
+                    filled: true,
+                  ),
+                  _ToolbarButton(
+                    onPressed: isLoading ? null : _sendAdminMessage,
+                    icon: const Icon(Icons.send_rounded),
+                    label: 'أرسل رسالة لطالب',
+                    filled: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (snapshot.hasError)
+              const _ErrorState(message: 'تعذر تحميل طلبات الشات.')
+            else if (messages.isEmpty)
+              _Panel(
+                child: Text(
+                  'لا توجد طلبات شات جديدة حالياً.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              )
+            else
+              ...messages.map(
+                (message) => _AdminSupportRequestCard(
+                  message: message,
+                  onOpen: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AdminSupportChatPage(
+                          supportMessage: message,
+                          token: widget.session.token,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AdminSupportRequestCard extends StatelessWidget {
+  final SupportMessage message;
+  final VoidCallback onOpen;
+
+  const _AdminSupportRequestCard({
+    required this.message,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final createdAt = message.createdAt.isNotEmpty
+        ? message.createdAt.split('T').first
+        : '';
+    final statusColor = message.isAnswered ? Colors.green : AppColors.orange;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _Panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        message.studentName.isNotEmpty
+                            ? message.studentName
+                            : 'طالب',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        message.message,
+                        textAlign: TextAlign.right,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _StatusPill(
+                  text: message.isAnswered ? 'مُجاب' : 'قيد الانتظار',
+                  color: statusColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  createdAt,
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: onOpen,
+                  child: const Text('فتح الشات'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminMessageDialog extends StatefulWidget {
+  final String token;
+
+  const _AdminMessageDialog({super.key, required this.token});
+
+  @override
+  State<_AdminMessageDialog> createState() => _AdminMessageDialogState();
+}
+
+class _AdminMessageDialogState extends State<_AdminMessageDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _messageController = TextEditingController();
+  AdminUser? _selectedStudent;
+  List<AdminUser> _students = [];
+  bool _loadingStudents = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
+
+  Future<void> _loadStudents() async {
+    try {
+      final users = await AdminApiService().getUsers(widget.token);
+      setState(() {
+        _students = users.where((u) => u.role == 'student').toList();
+        _loadingStudents = false;
+      });
+    } catch (error) {
+      setState(() {
+        _loadingStudents = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر تحميل قائمة الطلاب: $error')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  String? _required(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'مطلوب';
+    }
+    return null;
+  }
+
+  String? _studentRequired(AdminUser? value) {
+    if (value == null) {
+      return 'مطلوب اختيار طالب';
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('إرسال رسالة لطالب'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_loadingStudents)
+              const CircularProgressIndicator()
+            else
+              DropdownButtonFormField<AdminUser>(
+                value: _selectedStudent,
+                decoration: const InputDecoration(
+                  labelText: 'اختر الطالب',
+                ),
+                items: _students.map((student) {
+                  return DropdownMenuItem<AdminUser>(
+                    value: student,
+                    child: Text('${student.fullName} (${student.phone})'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedStudent = value;
+                  });
+                },
+                validator: _studentRequired,
+              ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _messageController,
+              minLines: 3,
+              maxLines: 6,
+              decoration: const InputDecoration(
+                labelText: 'الرسالة',
+              ),
+              validator: _required,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: _selectedStudent == null || _loadingStudents
+              ? null
+              : () {
+                  if (_formKey.currentState?.validate() == true) {
+                    Navigator.of(context).pop({
+                      'phone': _selectedStudent!.phone,
+                      'message': _messageController.text.trim(),
+                    });
+                  }
+                },
+          child: const Text('إرسال'),
+        ),
+      ],
+    );
+  }
+}
+
+class AdminSupportChatPage extends StatefulWidget {
+  final SupportMessage supportMessage;
+  final String token;
+
+  const AdminSupportChatPage({
+    super.key,
+    required this.supportMessage,
+    required this.token,
+  });
+
+  @override
+  State<AdminSupportChatPage> createState() => _AdminSupportChatPageState();
+}
+
+class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
+  final _supportService = SupportApiService();
+  late SupportMessage _supportMessage;
+  final _answerController = TextEditingController();
+  bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _supportMessage = widget.supportMessage;
+    _answerController.text = _supportMessage.answer;
+  }
+
+  @override
+  void dispose() {
+    _answerController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendAnswer() async {
+    final answer = _answerController.text.trim();
+    if (answer.isEmpty || _isSending) {
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      final updated = await _supportService.answerSupportMessage(
+        widget.token,
+        _supportMessage.id,
+        answer,
+      );
+      if (!mounted) return;
+      setState(() {
+        _supportMessage = updated;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم إرسال الرد للطالب.', textAlign: TextAlign.right),
+        ),
+      );
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message, textAlign: TextAlign.right)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('فشل إرسال الرد. حاول مرة أخرى.', textAlign: TextAlign.right),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('الشات مع ${_supportMessage.studentName}'),
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              _Panel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'الرسالة من الطالب',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _supportMessage.message,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'الحالة: ${_supportMessage.isAnswered ? 'مُجاب' : 'قيد الانتظار'}',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: _supportMessage.isAnswered
+                            ? Colors.green
+                            : AppColors.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    if (_supportMessage.isAnswered) ...[
+                      const Divider(),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'الرد الحالي',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _supportMessage.answer,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _Panel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'اكتب ردك للطالب',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _answerController,
+                      minLines: 3,
+                      maxLines: 6,
+                      textAlign: TextAlign.right,
+                      decoration: const InputDecoration(
+                        hintText: 'الرد هنا...',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _isSending ? null : _sendAnswer,
+                      child: _isSending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('إرسال الرد'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AdminNotificationsPage extends StatefulWidget {
   final AdminSession session;
 
@@ -4667,29 +5397,32 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Icon(icon, color: AppColors.orange, size: 20),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 4),
-          Flexible(
-            child: Text(
-              title,
+    return SizedBox(
+      height: 132,
+      child: _Panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Icon(icon, color: AppColors.orange, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              value,
               textAlign: TextAlign.right,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Flexible(
+              child: Text(
+                title,
+                textAlign: TextAlign.right,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -6081,10 +6814,8 @@ class _AdminBooksPageState extends State<AdminBooksPage> {
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _BookDialog(
-        title: 'إضافة كتاب',
-        availableCourseParts: courseParts,
-      ),
+      builder: (_) =>
+          _BookDialog(title: 'إضافة كتاب', availableCourseParts: courseParts),
     );
     if (result == null) {
       return;
@@ -6322,28 +7053,43 @@ class _BookDialogState extends State<_BookDialog> {
     _urlController = TextEditingController(text: widget.initialUrl);
     _accessMode = widget.initialIsFree == false ? 'purchase' : 'free';
 
-    _courseOptions = widget.availableCourseParts
-        .map((part) => part.course)
-        .where((value) => value.trim().isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    _courseOptions =
+        widget.availableCourseParts
+            .map((part) => part.course)
+            .where((value) => value.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
     _selectedCourse = widget.initialCourse?.isNotEmpty == true
         ? widget.initialCourse!
         : (_courseOptions.isNotEmpty ? _courseOptions.first : '');
 
-    _languageOptions = widget.availableCourseParts
-        .where((part) => _selectedCourse.isEmpty || part.course == _selectedCourse)
-        .map((part) => part.language)
-        .where((value) => value.trim().isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    if (_selectedCourse.isNotEmpty &&
+        !_courseOptions.contains(_selectedCourse)) {
+      _courseOptions.insert(0, _selectedCourse);
+    }
+
+    _languageOptions =
+        widget.availableCourseParts
+            .where(
+              (part) =>
+                  _selectedCourse.isEmpty || part.course == _selectedCourse,
+            )
+            .map((part) => part.language)
+            .where((value) => value.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
     _selectedLanguage = widget.initialLanguage?.isNotEmpty == true
         ? widget.initialLanguage!
         : (_languageOptions.isNotEmpty ? _languageOptions.first : '');
+
+    if (_selectedLanguage.isNotEmpty &&
+        !_languageOptions.contains(_selectedLanguage)) {
+      _languageOptions.insert(0, _selectedLanguage);
+    }
   }
 
   @override
@@ -6368,37 +7114,39 @@ class _BookDialogState extends State<_BookDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedCourse.isEmpty ? null : _selectedCourse,
-              decoration: const InputDecoration(labelText: 'الكورس الخاص بالكتاب'),
+              initialValue: _selectedCourse.isEmpty ? null : _selectedCourse,
+              decoration: const InputDecoration(
+                labelText: 'الكورس الخاص بالكتاب',
+              ),
               items: _courseOptions
                   .map(
-                    (course) => DropdownMenuItem(
-                      value: course,
-                      child: Text(course),
-                    ),
+                    (course) =>
+                        DropdownMenuItem(value: course, child: Text(course)),
                   )
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
                 setState(() {
                   _selectedCourse = value;
-                  _languageOptions = widget.availableCourseParts
-                      .where((part) => part.course == value)
-                      .map((part) => part.language)
-                      .where((language) => language.trim().isNotEmpty)
-                      .toSet()
-                      .toList()
-                    ..sort();
+                  _languageOptions =
+                      widget.availableCourseParts
+                          .where((part) => part.course == value)
+                          .map((part) => part.language)
+                          .where((language) => language.trim().isNotEmpty)
+                          .toSet()
+                          .toList()
+                        ..sort();
                   if (!_languageOptions.contains(_selectedLanguage)) {
-                    _selectedLanguage =
-                        _languageOptions.isNotEmpty ? _languageOptions.first : '';
+                    _selectedLanguage = _languageOptions.isNotEmpty
+                        ? _languageOptions.first
+                        : '';
                   }
                 });
               },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedLanguage.isEmpty ? null : _selectedLanguage,
+              initialValue: _selectedLanguage.isEmpty ? null : _selectedLanguage,
               decoration: const InputDecoration(labelText: 'اللغة'),
               items: _languageOptions
                   .map(
@@ -6416,7 +7164,7 @@ class _BookDialogState extends State<_BookDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _accessMode,
+              initialValue: _accessMode,
               decoration: const InputDecoration(labelText: 'وضعية الوصول'),
               items: const [
                 DropdownMenuItem(value: 'free', child: Text('مفتوح مجاني')),

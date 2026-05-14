@@ -26,6 +26,16 @@ class AuthUser {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'fullName': fullName,
+      'phone': phone,
+      'language': language,
+      'enrollments': enrollments.map((e) => e.toJson()).toList(),
+    };
+  }
+
   bool hasCourse(String language, String courseTitle) {
     final key = '$language|$courseTitle';
     return enrollments.any((enrollment) => enrollment.courseKey == key);
@@ -61,5 +71,17 @@ class UserEnrollment {
       paymentPhone: json['paymentPhone']?.toString() ?? '',
       paidAmount: json['paidAmount']?.toString() ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'courseKey': courseKey,
+      'courseTitle': courseTitle,
+      'courseLanguage': courseLanguage,
+      'paymentMethod': paymentMethod,
+      'paymentDate': paymentDate,
+      'paymentPhone': paymentPhone,
+      'paidAmount': paidAmount,
+    };
   }
 }

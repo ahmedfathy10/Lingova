@@ -30,15 +30,15 @@ class AdminBook {
     return AdminBook(
       id: json['id'] as String,
       title: json['title'] as String,
-      subtitle: json['subtitle'] as String,
-      course: json['course'] as String? ?? '',
+      subtitle: json['subtitle'] as String? ?? '',
+      course: json['course'] as String? ?? json['level'] as String? ?? '',
       language: json['language'] as String? ?? '',
       isFree: isFree,
-      url: json['url'] as String,
+      url: json['url'] as String? ?? '',
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : null,
-      createdBy: json['createdBy'] as String,
+      createdBy: json['createdBy'] as String? ?? 'Admin',
     );
   }
 

@@ -93,7 +93,10 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     return Scaffold(
-      body: pages[currentIndex],
+      body: IndexedStack(
+        index: currentIndex,
+        children: pages,
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(

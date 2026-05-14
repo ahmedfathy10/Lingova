@@ -16,16 +16,22 @@ const coursesFile = path.join(dataDir, 'courses.json');
 const booksFile = path.join(dataDir, 'books.json');
 const subscriptionsFile = path.join(dataDir, 'subscriptions.json');
 const notificationsFile = path.join(dataDir, 'notifications.json');
+const supportMessagesFile = path.join(dataDir, 'support_messages.json');
 const deviceTokensFile = path.join(dataDir, 'device_tokens.json');
+const supportMessagesFile = path.join(dataDir, 'support_messages.json');
 const questionsFile = path.join(dataDir, 'questions.json');
 const watchProgressFile = path.join(dataDir, 'watch_progress.json');
 const examsFile = path.join(dataDir, 'exams.json');
 const examResultsFile = path.join(dataDir, 'exam_results.json');
 const activityLogsFile = path.join(dataDir, 'activity_logs.json');
 const appSessionsFile = path.join(dataDir, 'app_sessions.json');
+const supportMessagesFile = path.join(dataDir, 'support_messages.json');
+const communityPostsFile = path.join(dataDir, 'community_posts.json');
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@lingova.com';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const adminSessions = new Map();
+const appDownloadUrl = process.env.APP_DOWNLOAD_URL || 'https://example.com/download-app';
+const adminPanelUrl = process.env.ADMIN_PANEL_URL || 'https://example.com/admin-panel';
 const availableCoursesCount = 8;
 let firebaseMessaging = undefined;
 
@@ -91,6 +97,16 @@ async function ensureStore() {
   } catch {
     await fs.writeFile(appSessionsFile, '[]\n', 'utf8');
   }
+  try {
+    await fs.access(supportMessagesFile);
+  } catch {
+    await fs.writeFile(supportMessagesFile, '[]\n', 'utf8');
+  }
+  try {
+    await fs.access(communityPostsFile);
+  } catch {
+    await fs.writeFile(communityPostsFile, '[]\n', 'utf8');
+  }
 }
 
 async function readUsers() {
@@ -101,6 +117,16 @@ async function readUsers() {
 
 async function writeUsers(users) {
   await fs.writeFile(usersFile, `${JSON.stringify(users, null, 2)}\n`, 'utf8');
+}
+
+function normalizePhone(phone) {
+  return String(phone || '').replace(/\s/g, '');
+}
+
+async function findUserByPhone(phone) {
+  const users = await readUsers();
+  const normalizedPhone = normalizePhone(phone);
+  return users.find((user) => normalizePhone(user.phone) === normalizedPhone);
 }
 
 async function readCourseParts() {
@@ -149,6 +175,36 @@ async function writeNotifications(notifications) {
     `${JSON.stringify(notifications, null, 2)}\n`,
     'utf8'
   );
+}
+
+async function readSupportMessages() {
+  await ensureStore();
+  const content = await fs.readFile(supportMessagesFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeSupportMessages(messages) {
+  await fs.writeFile(
+    supportMessagesFile,
+    `${JSON.stringify(messages, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+function publicSupportMessage(message) {
+  return {
+    id: message.id,
+    studentId: message.studentId || '',
+    studentName: message.studentName || '',
+    studentPhone: message.studentPhone || '',
+    message: message.message || '',
+    answer: message.answer || '',
+    sender: message.sender || 'student',
+    status: message.status || 'open',
+    createdAt: message.createdAt,
+    answeredAt: message.answeredAt || '',
+    answeredBy: message.answeredBy || '',
+  };
 }
 
 async function readDeviceTokens() {
@@ -213,6 +269,34 @@ async function writeExamResults(results) {
   await fs.writeFile(
     examResultsFile,
     `${JSON.stringify(results, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readSupportMessages() {
+  await ensureStore();
+  const content = await fs.readFile(supportMessagesFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeSupportMessages(messages) {
+  await fs.writeFile(
+    supportMessagesFile,
+    `${JSON.stringify(messages, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readCommunityPosts() {
+  await ensureStore();
+  const content = await fs.readFile(communityPostsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeCommunityPosts(posts) {
+  await fs.writeFile(
+    communityPostsFile,
+    `${JSON.stringify(posts, null, 2)}\n`,
     'utf8'
   );
 }
@@ -587,6 +671,30 @@ function publicCourseQuestion(question) {
     createdAt: question.createdAt,
     answeredAt: question.answeredAt || '',
     answeredBy: question.answeredBy || '',
+  };
+}
+
+function publicSupportMessage(message) {
+  return {
+    id: message.id,
+    studentId: message.studentId,
+    studentName: message.studentName || '',
+    message: message.message || '',
+    answer: message.answer || '',
+    status: message.status || 'pending',
+    createdAt: message.createdAt,
+    answeredAt: message.answeredAt || '',
+    answeredBy: message.answeredBy || '',
+  };
+}
+
+function publicCommunityPost(post) {
+  return {
+    id: post.id,
+    studentId: post.studentId || '',
+    authorName: post.authorName || 'مستخدم',
+    message: post.message || '',
+    createdAt: post.createdAt,
   };
 }
 
@@ -1245,6 +1353,268 @@ async function sendPushNotification(notification) {
     };
   } catch {
     return { sent: false, reason: 'send_failed' };
+  }
+}
+
+async function sendPushNotificationToUser(userId, notification) {
+  const messaging = getFirebaseMessaging();
+  if (!messaging) {
+    return { sent: false, reason: 'firebase_unavailable' };
+  }
+
+  const deviceTokens = await readDeviceTokens();
+  const tokens = deviceTokens
+    .filter((item) => String(item.userId || '').trim() === String(userId).trim())
+    .map((item) => String(item.token || '').trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    return { sent: false, reason: 'no_tokens' };
+  }
+
+  try {
+    const result = await messaging.sendEachForMulticast({
+      tokens,
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
+      data: {
+        notificationId: notification.id,
+        type: notification.type || 'general',
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'lingova_notifications',
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
+    });
+
+    const invalidTokens = [];
+    result.responses.forEach((item, index) => {
+      if (item.success) {
+        return;
+      }
+      const code = item.error?.code || '';
+      if (
+        code.includes('registration-token-not-registered') ||
+        code.includes('invalid-argument')
+      ) {
+        invalidTokens.push(tokens[index]);
+      }
+    });
+
+    if (invalidTokens.length) {
+      const nextTokens = deviceTokens.filter(
+        (item) => !invalidTokens.includes(item.token)
+      );
+      await writeDeviceTokens(nextTokens);
+    }
+
+    return {
+      sent: result.successCount > 0,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+    };
+  } catch {
+    return { sent: false, reason: 'send_failed' };
+  }
+}
+
+async function listSupportMessages(request, response, url) {
+  try {
+    const studentId = String(url.searchParams.get('studentId') || '').trim();
+
+    if (!studentId) {
+      sendJson(response, 400, { message: 'بيانات الطالب غير مكتملة.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+    const filtered = messages.filter((item) => item.studentId === studentId);
+
+    sendJson(response, 200, {
+      messages: filtered.map(publicSupportMessage),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل رسائل الدعم.' });
+  }
+}
+
+async function createSupportMessage(request, response) {
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const studentId = String(payload.studentId || '').trim();
+    const messageText = String(payload.message || '').trim();
+
+    if (!studentId || !messageText) {
+      sendJson(response, 400, { message: 'من فضلك اكتب الرسالة.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((item) => item.id === studentId);
+
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+
+    const message = {
+      id: crypto.randomUUID(),
+      studentId,
+      studentName: user.fullName || '',
+      studentPhone: user.phone || '',
+      message: messageText,
+      answer: '',
+      sender: 'student',
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      answeredAt: '',
+      answeredBy: '',
+    };
+
+    messages.unshift(message);
+
+    await writeSupportMessages(messages);
+
+    sendJson(response, 201, {
+      message: publicSupportMessage(message),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال الرسالة.' });
+  }
+}
+
+async function listAdminSupportMessages(request, response) {
+  const adminSession = requireAdmin(request, response);
+
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const messages = await readSupportMessages();
+
+    sendJson(response, 200, {
+      messages: messages.map(publicSupportMessage),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل رسائل الدعم.' });
+  }
+}
+
+async function answerSupportMessage(request, response, messageId) {
+  const adminSession = requireAdmin(request, response);
+
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const answer = String(payload.answer || '').trim();
+
+    if (!answer) {
+      sendJson(response, 400, { message: 'من فضلك اكتب الرد.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+
+    const message = messages.find((item) => item.id === messageId);
+
+    if (!message) {
+      sendJson(response, 404, { message: 'الرسالة غير موجودة.' });
+      return;
+    }
+
+    message.answer = answer;
+    message.status = 'answered';
+    message.answeredAt = new Date().toISOString();
+    message.answeredBy = adminSession.name || 'Admin';
+
+    await writeSupportMessages(messages);
+
+    sendJson(response, 200, {
+      message: publicSupportMessage(message),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال الرد.' });
+  }
+}
+
+async function sendAdminSupportMessage(request, response) {
+  const adminSession = requireAdmin(request, response);
+
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+
+    const studentPhone = String(
+      payload.studentPhone || '',
+    ).replace(/\s/g, '');
+
+    const messageText = String(payload.message || '').trim();
+
+    if (!studentPhone || !messageText) {
+      sendJson(response, 400, {
+        message: 'بيانات الرسالة غير مكتملة.',
+      });
+      return;
+    }
+
+    const users = await readUsers();
+
+    const user = users.find((item) => item.phone === studentPhone);
+
+    if (!user) {
+      sendJson(response, 404, {
+        message: 'الطالب غير موجود.',
+      });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+
+    const message = {
+      id: crypto.randomUUID(),
+      studentId: user.id,
+      studentName: user.fullName || '',
+      studentPhone: user.phone || '',
+      message: messageText,
+      answer: '',
+      sender: 'admin',
+      status: 'sent',
+      createdAt: new Date().toISOString(),
+      answeredAt: '',
+      answeredBy: adminSession.name || 'Admin',
+    };
+
+    messages.unshift(message);
+
+    await writeSupportMessages(messages);
+
+    sendJson(response, 201, {
+      message: publicSupportMessage(message),
+    });
+  } catch {
+    sendJson(response, 500, {
+      message: 'تعذر إرسال رسالة الأدمن.',
+    });
   }
 }
 
@@ -2021,6 +2391,256 @@ async function answerQuestion(request, response, questionId) {
   }
 }
 
+async function listStudentSupportMessages(request, response, url) {
+  try {
+    const studentId = String(url.searchParams.get('studentId') || '').trim();
+
+    if (!studentId) {
+      sendJson(response, 400, { message: 'بيانات المستخدم غير مكتملة.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+    const studentMessages = messages.filter(
+      (item) => String(item.studentId || '').trim() === studentId
+    );
+
+    sendJson(response, 200, {
+      messages: studentMessages.map(publicSupportMessage),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل رسائل الدعم.' });
+  }
+}
+
+async function createSupportMessage(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const messageText = String(payload.message || '').trim();
+
+    if (!studentId || !messageText) {
+      sendJson(response, 400, { message: 'من فضلك اكتب رسالتك.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user || normalizeRole(user.role) !== 'student') {
+      sendJson(response, 404, { message: 'بيانات الطالب غير موجودة.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+    const supportMessage = {
+      id: crypto.randomUUID(),
+      studentId,
+      studentName: user.fullName || '',
+      message: messageText,
+      answer: '',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      answeredAt: '',
+      answeredBy: '',
+    };
+
+    messages.unshift(supportMessage);
+    await writeSupportMessages(messages);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'support_message',
+      label: 'طلب دعم مباشر',
+      details: messageText,
+    });
+
+    sendJson(response, 201, { message: publicSupportMessage(supportMessage) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال رسالة الدعم.' });
+  }
+}
+
+async function listAdminSupportMessages(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const messages = await readSupportMessages();
+    sendJson(response, 200, {
+      messages: messages.map(publicSupportMessage),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل رسائل الدعم.' });
+  }
+}
+
+async function createAdminSupportMessage(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentPhone = normalizePhone(payload.studentPhone || '');
+    const message = String(payload.message || '').trim();
+
+    if (!studentPhone || !message) {
+      sendJson(response, 400, { message: 'من فضلك اكتب رقم الهاتف والنص.' });
+      return;
+    }
+
+    const student = await findUserByPhone(studentPhone);
+    if (!student || normalizeRole(student.role) !== 'student') {
+      sendJson(response, 404, { message: 'الطالب غير موجود.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+    const supportMessage = {
+      id: crypto.randomUUID(),
+      studentId: student.id,
+      studentName: student.fullName || '',
+      message: '',
+      answer: message,
+      status: 'answered',
+      createdAt: new Date().toISOString(),
+      answeredAt: new Date().toISOString(),
+      answeredBy: adminSession.name || 'Admin',
+    };
+
+    messages.unshift(supportMessage);
+    await writeSupportMessages(messages);
+    await recordActivity({
+      userId: student.id,
+      userName: student.fullName || '',
+      userPhone: student.phone || '',
+      action: 'support_message',
+      label: 'رسالة من الإدارة إلى الطالب',
+      details: message,
+    });
+
+    await sendPushNotificationToUser(student.id, {
+      id: crypto.randomUUID(),
+      title: 'رسالة جديدة من الدعم',
+      body: message,
+      type: 'support',
+    });
+
+    sendJson(response, 201, { message: publicSupportMessage(supportMessage) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إرسال الرسالة.' });
+  }
+}
+
+async function answerSupportMessage(request, response, messageId) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const answer = String(payload.answer || '').trim();
+    if (!answer) {
+      sendJson(response, 400, { message: 'من فضلك اكتب الرد.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+    const supportMessage = messages.find((item) => item.id === messageId);
+    if (!supportMessage) {
+      sendJson(response, 404, { message: 'رسالة الدعم غير موجودة.' });
+      return;
+    }
+
+    supportMessage.answer = answer;
+    supportMessage.status = 'answered';
+    supportMessage.answeredAt = new Date().toISOString();
+    supportMessage.answeredBy = adminSession.name || 'Admin';
+
+    await writeSupportMessages(messages);
+    await recordActivity({
+      userId: supportMessage.studentId || '',
+      userName: supportMessage.studentName || '',
+      userPhone: '',
+      action: 'support_answer',
+      label: 'رد على رسالة دعم',
+      details: answer,
+    });
+
+    await sendPushNotificationToUser(supportMessage.studentId, {
+      id: crypto.randomUUID(),
+      title: 'تم الرد على طلب الدعم',
+      body: 'يمكنك الاطلاع على الرد في صفحة الشات المباشر.',
+      type: 'support',
+    });
+
+    sendJson(response, 200, { message: publicSupportMessage(supportMessage) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حفظ الرد.' });
+  }
+}
+
+async function listCommunityPosts(request, response) {
+  try {
+    const posts = await readCommunityPosts();
+    sendJson(response, 200, {
+      posts: posts.map(publicCommunityPost),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل منشورات المجتمع.' });
+  }
+}
+
+async function createCommunityPost(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const authorName = String(payload.authorName || '').trim();
+    const messageText = String(payload.message || '').trim();
+
+    if (!authorName || !messageText) {
+      sendJson(response, 400, { message: 'من فضلك اكتب المنشور.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات المستخدم غير موجودة.' });
+      return;
+    }
+
+    const posts = await readCommunityPosts();
+    const newPost = {
+      id: crypto.randomUUID(),
+      studentId,
+      authorName: authorName || user.fullName || 'مستخدم',
+      message: messageText,
+      createdAt: new Date().toISOString(),
+    };
+
+    posts.unshift(newPost);
+    await writeCommunityPosts(posts);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'community_post',
+      label: 'منشور مجتمع',
+      details: messageText,
+    });
+
+    sendJson(response, 201, { post: publicCommunityPost(newPost) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر نشر المنشور.' });
+  }
+}
+
 async function createSubscriptionRequest(request, response) {
   try {
     const payload = JSON.parse(await readBody(request));
@@ -2709,6 +3329,26 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'GET' && url.pathname === '/app-download') {
+    response.writeHead(302, { Location: appDownloadUrl });
+    response.end();
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/admin') {
+    response.writeHead(302, { Location: adminPanelUrl });
+    response.end();
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/links') {
+    sendJson(response, 200, {
+      appDownloadUrl,
+      adminPanelUrl,
+    });
+    return;
+  }
+
   if (request.method === 'POST' && url.pathname === '/api/register') {
     await register(request, response);
     return;
@@ -2772,6 +3412,30 @@ const server = http.createServer(async (request, response) => {
     }
   }
 
+  if (url.pathname === '/api/support/messages') {
+    if (request.method === 'GET') {
+      await listStudentSupportMessages(request, response, url);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createSupportMessage(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/community/posts') {
+    if (request.method === 'GET') {
+      await listCommunityPosts(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createCommunityPost(request, response);
+      return;
+    }
+  }
+
   if (url.pathname === '/api/watch-progress') {
     if (request.method === 'GET') {
       await listStudentWatchProgress(request, response, url);
@@ -2802,6 +3466,18 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'GET' && url.pathname === '/api/admin/questions') {
     await listAdminQuestions(request, response);
     return;
+  }
+
+  if (url.pathname === '/api/admin/support-messages') {
+    if (request.method === 'GET') {
+      await listAdminSupportMessages(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createAdminSupportMessage(request, response);
+      return;
+    }
   }
 
   if (request.method === 'GET' && url.pathname === '/api/admin/watch-report') {
@@ -2983,7 +3659,44 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  sendJson(response, 404, { message: 'Route not found.' });
+  const supportAnswerActionMatch = url.pathname.match(
+    /^\/api\/admin\/support-messages\/([^/]+)\/answer$/
+  );
+  if (supportAnswerActionMatch && request.method === 'POST') {
+    await answerSupportMessage(request, response, supportAnswerActionMatch[1]);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/support/messages') {
+  await listSupportMessages(request, response, url);
+  return;
+}
+
+if (request.method === 'POST' && url.pathname === '/api/support/messages') {
+  await createSupportMessage(request, response);
+  return;
+}
+
+if (request.method === 'GET' && url.pathname === '/api/admin/support-messages') {
+  await listAdminSupportMessages(request, response);
+  return;
+}
+
+if (request.method === 'POST' && url.pathname === '/api/admin/support-messages') {
+  await sendAdminSupportMessage(request, response);
+  return;
+}
+
+const supportAnswerMatch = url.pathname.match(
+  /^\/api\/admin\/support-messages\/([^/]+)\/answer$/
+);
+
+if (request.method === 'POST' && supportAnswerMatch) {
+  await answerSupportMessage(request, response, supportAnswerMatch[1]);
+  return;
+}
+
+sendJson(response, 404, { message: 'Route not found.' });
 });
 
 server.listen(port, host, () => {

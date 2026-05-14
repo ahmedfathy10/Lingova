@@ -16,11 +16,14 @@ class BookViewerScreen extends StatefulWidget {
 
 class _BookViewerScreenState extends State<BookViewerScreen> {
   late final WebViewController _controller;
+  late final String _bookUrl;
   bool _isLaunching = false;
 
   @override
   void initState() {
     super.initState();
+    _bookUrl = _normalizeBookUrl(widget.book.url);
+
     if (kIsWeb) {
       _launchUrl();
     } else {
@@ -38,8 +41,20 @@ class _BookViewerScreenState extends State<BookViewerScreen> {
             },
           ),
         )
-        ..loadRequest(Uri.parse(widget.book.url));
+        ..loadRequest(Uri.parse(_bookUrl));
     }
+  }
+
+  String _normalizeBookUrl(String url) {
+    final driveIdRegExp = RegExp(
+      r'https?://drive\.google\.com/(?:file/d/|open\?id=|uc\?id=)([\w-]+)',
+      caseSensitive: false,
+    );
+    final match = driveIdRegExp.firstMatch(url);
+    if (match != null) {
+      return 'https://drive.google.com/file/d/${match.group(1)}/preview';
+    }
+    return url;
   }
 
   Future<void> _launchUrl() async {
@@ -50,7 +65,7 @@ class _BookViewerScreenState extends State<BookViewerScreen> {
     });
 
     final success = await launchUrlString(
-      widget.book.url,
+      _bookUrl,
       webOnlyWindowName: '_blank',
     );
 
@@ -72,9 +87,7 @@ class _BookViewerScreenState extends State<BookViewerScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.book.title),
-        ),
+        appBar: AppBar(title: Text(widget.book.title)),
         body: kIsWeb
             ? Center(
                 child: _isLaunching

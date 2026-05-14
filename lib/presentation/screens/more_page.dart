@@ -1,16 +1,25 @@
 ﻿import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
+import '../../data/services/auth_storage_service.dart';
 import '../../domain/entities/book.dart';
+import '../../data/datasources/book_api_datasource.dart';
+import 'ai_chat_page.dart';
 import 'book_viewer_screen.dart';
+import 'certificates_page.dart';
+import 'community_page.dart';
+import 'live_support_page.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 
 class MorePage extends StatelessWidget {
   const MorePage({super.key});
 
-  void _logout(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
+  Future<void> _logout(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    await AuthStorageService.clearUser();
+
+    navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );
@@ -21,6 +30,34 @@ class MorePage extends StatelessWidget {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+      return;
+    }
+
+    if (title == 'المساعد الذكي') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AiChatPage()));
+      return;
+    }
+
+    if (title == 'الشهادات') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const CertificatesPage()));
+      return;
+    }
+
+    if (title == 'الشات المباشر') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LiveSupportPage()),
+      );
+      return;
+    }
+
+    if (title == 'المجتمع') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const CommunityPage()),
+      );
       return;
     }
 
@@ -35,9 +72,11 @@ class MorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <({String title, IconData icon})>[
       (title: 'الكتب الإلكترونية', icon: Icons.picture_as_pdf_rounded),
+      (title: 'المساعد الذكي', icon: Icons.smart_toy_rounded),
       (title: 'الملفات الصوتية', icon: Icons.headphones_rounded),
       (title: 'الشهادات', icon: Icons.workspace_premium_rounded),
-      (title: 'تواصل معنا', icon: Icons.support_agent_rounded),
+      (title: 'الشات المباشر', icon: Icons.support_agent_rounded),
+      (title: 'المجتمع', icon: Icons.group_rounded),
       (title: 'الإعدادات', icon: Icons.settings_rounded),
       (title: 'تسجيل خروج', icon: Icons.logout_rounded),
     ];
@@ -124,6 +163,16 @@ class _MoreFeatureScreen extends StatefulWidget {
 }
 
 class _MoreFeatureScreenState extends State<_MoreFeatureScreen> {
+  late final Future<List<Book>> _booksFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.title == 'الكتب الإلكترونية') {
+      _booksFuture = BookApiDataSource().getBooks();
+    }
+  }
+
   List<({String title, String subtitle, IconData icon})> get _items {
     return switch (widget.title) {
       'الكتب الإلكترونية' => const [
@@ -189,46 +238,106 @@ class _MoreFeatureScreenState extends State<_MoreFeatureScreen> {
     };
   }
 
+  void _openBook(BuildContext context, Book book) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => BookViewerScreen(book: book)),
+    );
+  }
+
+  Widget _buildBooksList() {
+    return FutureBuilder<List<Book>>(
+      future: _booksFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'تعذر تحميل الكتب. حاول مرة أخرى لاحقاً.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          );
+        }
+
+        final books = snapshot.data ?? [];
+        if (books.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'لا توجد كتب إلكترونية متاحة حالياً.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          );
+        }
+
+        return Column(
+          children: books.map((book) => _buildBookItem(context, book)).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildBookItem(BuildContext context, Book book) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _openBook(context, book),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.picture_as_pdf_rounded, color: AppColors.orange),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        book.title,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        book.subtitle.isNotEmpty ? book.subtitle : book.course,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _onItemTap(BuildContext context, String itemTitle) {
-    if (widget.title == 'الكتب الإلكترونية') {
-      // Create sample books
-      final books = [
-        Book(
-          id: '1',
-          title: 'كتاب English A1',
-          subtitle: 'ملخص الدروس والكلمات الأساسية',
-          course: 'English A1',
-          language: 'English',
-          isFree: true,
-          url: 'https://example.com/english_a1.pdf', // Replace with actual URL
-          createdAt: '2024-01-01',
-          createdBy: 'Admin',
-        ),
-        Book(
-          id: '2',
-          title: 'كتاب German A1',
-          subtitle: 'تأسيس قواعد ومفردات المستوى الأول',
-          course: 'German A1',
-          language: 'German',
-          isFree: false,
-          url: 'https://example.com/german_a1.pdf', // Replace with actual URL
-          createdAt: '2024-01-01',
-          createdBy: 'Admin',
-        ),
-      ];
-
-      final book = books.firstWhere(
-        (b) => b.title == itemTitle,
-        orElse: () => books[0],
-      );
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => BookViewerScreen(book: book)),
-      );
-    } else {
-      _showComingSoon(context, itemTitle);
-    }
+    _showComingSoon(context, itemTitle);
   }
 
   void _showComingSoon(BuildContext context, String itemTitle) {
@@ -274,55 +383,58 @@ class _MoreFeatureScreenState extends State<_MoreFeatureScreen> {
                 ),
               ),
               SizedBox(height: 18),
-              ..._items.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Material(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    child: InkWell(
+              if (widget.title == 'الكتب الإلكترونية')
+                _buildBooksList()
+              else
+                ..._items.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: AppColors.surface,
                       borderRadius: BorderRadius.circular(20),
-                      onTap: () => _onItemTap(context, item.title),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(item.icon, color: AppColors.orange),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    item.title,
-                                    textAlign: TextAlign.right,
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w900,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _onItemTap(context, item.title),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(item.icon, color: AppColors.orange),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      item.title,
+                                      textAlign: TextAlign.right,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w900,
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(height: 5),
-                                  Text(
-                                    item.subtitle,
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      color: AppColors.textMuted,
+                                    SizedBox(height: 5),
+                                    Text(
+                                      item.subtitle,
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        color: AppColors.textMuted,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
