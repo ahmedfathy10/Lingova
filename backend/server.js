@@ -24,7 +24,6 @@ const examsFile = path.join(dataDir, 'exams.json');
 const examResultsFile = path.join(dataDir, 'exam_results.json');
 const activityLogsFile = path.join(dataDir, 'activity_logs.json');
 const appSessionsFile = path.join(dataDir, 'app_sessions.json');
-const supportMessagesFile = path.join(dataDir, 'support_messages.json');
 const communityPostsFile = path.join(dataDir, 'community_posts.json');
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@lingova.com';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
