@@ -18,7 +18,6 @@ const subscriptionsFile = path.join(dataDir, 'subscriptions.json');
 const notificationsFile = path.join(dataDir, 'notifications.json');
 const supportMessagesFile = path.join(dataDir, 'support_messages.json');
 const deviceTokensFile = path.join(dataDir, 'device_tokens.json');
-const supportMessagesFile = path.join(dataDir, 'support_messages.json');
 const questionsFile = path.join(dataDir, 'questions.json');
 const watchProgressFile = path.join(dataDir, 'watch_progress.json');
 const examsFile = path.join(dataDir, 'exams.json');
