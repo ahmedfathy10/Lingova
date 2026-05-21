@@ -55,9 +55,7 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
 
       _currentUser = user;
 
-      final messages = await _supportService.getMessages(
-        studentId: user.id,
-      );
+      final messages = await _supportService.getMessages(studentId: user.id);
 
       if (!mounted) return;
 
@@ -99,10 +97,7 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
         return;
       }
 
-      await _supportService.createMessage(
-        studentId: user.id,
-        message: text,
-      );
+      await _supportService.createMessage(studentId: user.id, message: text);
 
       _messageController.clear();
 
@@ -146,14 +141,11 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
   Widget _buildBubble(SupportMessage message) {
     final isMe = !message.isFromAdmin;
 
-    final bubbleColor =
-        isMe ? const Color(0xFFD9FDD3) : Colors.white;
+    final bubbleColor = isMe ? const Color(0xFFD9FDD3) : Colors.white;
 
-    final textColor =
-        isMe ? Colors.black87 : AppColors.textPrimary;
+    final textColor = isMe ? Colors.black87 : AppColors.textPrimary;
 
-    final alignment =
-        isMe ? Alignment.centerRight : Alignment.centerLeft;
+    final alignment = isMe ? Alignment.centerRight : Alignment.centerLeft;
 
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(18),
@@ -166,10 +158,7 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
       alignment: alignment,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 300),
-        margin: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 4,
-        ),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
         decoration: BoxDecoration(
           color: bubbleColor,
@@ -183,10 +172,9 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
           ],
         ),
         child: Column(
-          crossAxisAlignment:
-              isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             Text(
               message.message,
@@ -204,21 +192,14 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
               children: [
                 Text(
                   _formatTime(message.createdAt),
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                 ),
                 if (isMe) ...[
                   const SizedBox(width: 5),
                   Icon(
-                    message.readByAdmin
-                        ? Icons.done_all
-                        : Icons.done,
+                    message.readByAdmin ? Icons.done_all : Icons.done,
                     size: 16,
-                    color: message.readByAdmin
-                        ? Colors.blue
-                        : Colors.grey,
+                    color: message.readByAdmin ? Colors.blue : Colors.grey,
                   ),
                 ],
               ],
@@ -233,12 +214,7 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.right,
-        ),
-      ),
+      SnackBar(content: Text(message, textAlign: TextAlign.right)),
     );
   }
 
@@ -258,22 +234,15 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
               const CircleAvatar(
                 radius: 20,
                 backgroundColor: Color(0xFFE8E8E8),
-                child: Icon(
-                  Icons.support_agent,
-                  color: Colors.black87,
-                ),
+                child: Icon(Icons.support_agent, color: Colors.black87),
               ),
               const SizedBox(width: 12),
               Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
                     'الدعم المباشر',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   Text(
                     'متصل الآن',
@@ -298,152 +267,97 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
             children: [
               Expanded(
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(),
-                      )
+                    ? const Center(child: CircularProgressIndicator())
                     : _messages.isEmpty
-                        ? Center(
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.all(24),
-                              child: Text(
-                                'ابدأ محادثتك مع الدعم الآن.',
-                                textAlign:
-                                    TextAlign.center,
-                                style: TextStyle(
-                                  color:
-                                      AppColors.textMuted,
-                                  fontSize: 15,
-                                ),
-                              ),
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'ابدأ محادثتك مع الدعم الآن.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 15,
                             ),
-                          )
-                        : ListView.builder(
-                            controller:
-                                _scrollController,
-                            padding:
-                                const EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
-                            itemCount: _messages.length,
-                            itemBuilder:
-                                (context, index) {
-                              return _buildBubble(
-                                _messages[index],
-                              );
-                            },
                           ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          return _buildBubble(_messages[index]);
+                        },
+                      ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.fromLTRB(
-                  10,
-                  8,
-                  10,
-                  12,
-                ),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  border: Border(
-                    top: BorderSide(
-                      color: Colors.grey.shade300,
-                    ),
-                  ),
+                  border: Border(top: BorderSide(color: Colors.grey.shade300)),
                 ),
                 child: Row(
                   children: [
                     Expanded(
                       child: TextField(
-                        controller:
-                            _messageController,
+                        controller: _messageController,
                         minLines: 1,
                         maxLines: 5,
                         textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        cursorColor: const Color(0xFF075E54),
                         decoration: InputDecoration(
-                          hintText:
-                              'اكتب رسالة...',
-                          hintStyle: TextStyle(
-                            color:
-                                Colors.grey.shade600,
-                          ),
+                          hintText: 'اكتب رسالة...',
+                          hintStyle: TextStyle(color: Colors.grey.shade600),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding:
-                              const EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 18,
                             vertical: 12,
                           ),
-                          border:
-                              OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(
-                              28,
-                            ),
-                            borderSide:
-                                BorderSide(
-                              color:
-                                  Colors.grey.shade300,
-                            ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
                           ),
-                          enabledBorder:
-                              OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(
-                              28,
-                            ),
-                            borderSide:
-                                BorderSide(
-                              color:
-                                  Colors.grey.shade300,
-                            ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
                           ),
-                          focusedBorder:
-                              OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(
-                              28,
-                            ),
-                            borderSide:
-                                const BorderSide(
-                              color:
-                                  Color(0xFF075E54),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF075E54),
                               width: 1.5,
                             ),
                           ),
                         ),
-                        onSubmitted: (_) =>
-                            _sendMessage(),
+                        onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
                     const SizedBox(width: 8),
                     CircleAvatar(
                       radius: 25,
-                      backgroundColor:
-                          const Color(0xFF075E54),
+                      backgroundColor: const Color(0xFF075E54),
                       child: IconButton(
-                        onPressed:
-                            _isSending
-                                ? null
-                                : _sendMessage,
-                        icon:
-                            _isSending
-                                ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child:
-                                      CircularProgressIndicator(
-                                        strokeWidth:
-                                            2,
-                                        color:
-                                            Colors
-                                                .white,
-                                      ),
-                                )
-                                : const Icon(
-                                  Icons.send_rounded,
-                                  color:
-                                      Colors.white,
+                        onPressed: _isSending ? null : _sendMessage,
+                        icon: _isSending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
                                 ),
+                              )
+                            : const Icon(
+                                Icons.send_rounded,
+                                color: Colors.white,
+                              ),
                       ),
                     ),
                   ],
