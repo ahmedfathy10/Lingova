@@ -35,12 +35,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await _future;
   }
 
-  void _markAsRead(AppNotification notification) {
+  Future<void> _markAsRead(AppNotification notification) async {
     if (notification.isRead) {
       return;
     }
 
-    _dataSource.markAsRead(notification.id);
+    await _dataSource.markAsRead(notification.id);
+    if (!mounted) return;
     setState(() {
       _notifications = [
         for (final current in _notifications)
@@ -52,8 +53,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
   }
 
-  void _markAllAsRead() {
-    _dataSource.markAllAsRead(_notifications.map((notification) => notification.id));
+  Future<void> _markAllAsRead() async {
+    await _dataSource.markAllAsRead(
+      _notifications.map((notification) => notification.id),
+    );
+    if (!mounted) return;
     setState(() {
       _notifications = [
         for (final notification in _notifications)
@@ -86,7 +90,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           child: FutureBuilder<List<AppNotification>>(
             future: _future,
             builder: (context, snapshot) {
-              final notifications = snapshot.connectionState == ConnectionState.done
+              final notifications =
+                  snapshot.connectionState == ConnectionState.done
                   ? _notifications
                   : (snapshot.data ?? _notifications);
               final unreadCount = notifications

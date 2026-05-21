@@ -55,19 +55,28 @@ class PushNotificationService {
 
       await _localNotifications
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.createNotificationChannel(_channel);
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
 
-      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
 
       _foregroundSubscription ??= FirebaseMessaging.onMessage.listen(
         _showForegroundNotification,
       );
-      _openedAppSubscription ??= FirebaseMessaging.onMessageOpenedApp.listen((_) {});
+      _openedAppSubscription ??= FirebaseMessaging.onMessageOpenedApp.listen(
+        (_) {},
+      );
 
       _prepared = true;
     } catch (_) {
@@ -98,27 +107,24 @@ class PushNotificationService {
         await _registerToken(token, user.id);
       }
 
-      _tokenRefreshSubscription ??=
-          FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
-        final currentUserId = _currentUserId;
-        if (currentUserId == null || currentUserId.isEmpty) {
-          return;
-        }
-        await _registerToken(token, currentUserId);
-      });
+      _tokenRefreshSubscription ??= FirebaseMessaging.instance.onTokenRefresh
+          .listen((token) async {
+            final currentUserId = _currentUserId;
+            if (currentUserId == null || currentUserId.isEmpty) {
+              return;
+            }
+            await _registerToken(token, currentUserId);
+          });
     } catch (_) {}
   }
 
   Future<void> _registerToken(String token, String userId) async {
     try {
-      await postJson(
-        Uri.parse('${ApiConfig.baseUrl}/api/devices/register'),
-        {
-          'userId': userId,
-          'token': token,
-          'platform': defaultTargetPlatform.name,
-        },
-      );
+      await postJson(Uri.parse('${ApiConfig.baseUrl}/api/devices/register'), {
+        'userId': userId,
+        'token': token,
+        'platform': defaultTargetPlatform.name,
+      });
     } catch (_) {}
   }
 

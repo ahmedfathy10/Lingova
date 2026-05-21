@@ -138,7 +138,7 @@ class AdminApiService {
     throw AuthApiException(_readMessage(json, response.statusCode));
   }
 
-  Future<void> createNotification(
+  Future<String?> createNotification(
     String token,
     Map<String, dynamic> notification,
   ) async {
@@ -148,7 +148,12 @@ class AdminApiService {
       headers: _headers(token),
     );
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return;
+      final json = _readJson(response.body);
+      final push = json['push'];
+      if (push is Map && push['sent'] != true) {
+        return push['reason']?.toString() ?? 'push_failed';
+      }
+      return null;
     }
 
     throw AuthApiException(

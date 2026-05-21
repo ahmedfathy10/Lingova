@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("com.google.gms.google-services")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -21,7 +22,6 @@ android {
     productFlavors {
         create("user") {
             dimension = "app"
-            applicationIdSuffix = ".user"
             resValue("string", "app_name", "Lingova")
         }
 

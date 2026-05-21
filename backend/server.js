@@ -199,6 +199,8 @@ function publicSupportMessage(message) {
     answer: message.answer || '',
     sender: message.sender || 'student',
     status: message.status || 'open',
+    readByAdmin: message.readByAdmin === true,
+    readByStudent: message.readByStudent === true,
     createdAt: message.createdAt,
     answeredAt: message.answeredAt || '',
     answeredBy: message.answeredBy || '',
@@ -542,12 +544,29 @@ function getFirebaseMessaging() {
 
   try {
     if (!firebaseAdmin.apps.length) {
-      firebaseAdmin.initializeApp({
-        credential: firebaseAdmin.credential.cert({
+      let credentialConfig = null;
+      const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (serviceAccountJson) {
+        credentialConfig = JSON.parse(serviceAccountJson);
+      } else if (
+        process.env.FIREBASE_PROJECT_ID &&
+        process.env.FIREBASE_CLIENT_EMAIL &&
+        process.env.FIREBASE_PRIVATE_KEY
+      ) {
+        credentialConfig = {
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
           privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-        }),
+        };
+      }
+
+      if (!credentialConfig) {
+        console.log('Firebase init error: missing service account env');
+        return firebaseMessaging;
+      }
+
+      firebaseAdmin.initializeApp({
+        credential: firebaseAdmin.credential.cert(credentialConfig),
       });
     }
 
@@ -673,13 +692,20 @@ function publicCourseQuestion(question) {
 }
 
 function publicSupportMessage(message) {
+  const sender =
+    message.sender || (message.answer && !message.message ? 'admin' : 'student');
+
   return {
     id: message.id,
-    studentId: message.studentId,
+    studentId: message.studentId || '',
     studentName: message.studentName || '',
-    message: message.message || '',
+    studentPhone: message.studentPhone || '',
+    sender,
+    message: message.message || (sender === 'admin' ? message.answer || '' : ''),
     answer: message.answer || '',
     status: message.status || 'pending',
+    readByAdmin: message.readByAdmin === true,
+    readByStudent: message.readByStudent === true,
     createdAt: message.createdAt,
     answeredAt: message.answeredAt || '',
     answeredBy: message.answeredBy || '',
@@ -1562,13 +1588,14 @@ async function sendAdminSupportMessage(request, response) {
   try {
     const payload = JSON.parse((await readBody(request)) || '{}');
 
+    const studentId = String(payload.studentId || '').trim();
     const studentPhone = String(
       payload.studentPhone || '',
     ).replace(/\s/g, '');
 
     const messageText = String(payload.message || '').trim();
 
-    if (!studentPhone || !messageText) {
+    if ((!studentId && !studentPhone) || !messageText) {
       sendJson(response, 400, {
         message: 'بيانات الرسالة غير مكتملة.',
       });
@@ -1577,7 +1604,9 @@ async function sendAdminSupportMessage(request, response) {
 
     const users = await readUsers();
 
-    const user = users.find((item) => item.phone === studentPhone);
+    const user = studentId
+      ? users.find((item) => item.id === studentId)
+      : users.find((item) => normalizePhone(item.phone) === studentPhone);
 
     if (!user) {
       sendJson(response, 404, {
@@ -1597,6 +1626,8 @@ async function sendAdminSupportMessage(request, response) {
       answer: '',
       sender: 'admin',
       status: 'sent',
+      readByAdmin: true,
+      readByStudent: false,
       createdAt: new Date().toISOString(),
       answeredAt: '',
       answeredBy: adminSession.name || 'Admin',
@@ -2434,9 +2465,13 @@ async function createSupportMessage(request, response) {
       id: crypto.randomUUID(),
       studentId,
       studentName: user.fullName || '',
+      studentPhone: user.phone || '',
+      sender: 'student',
       message: messageText,
       answer: '',
       status: 'pending',
+      readByAdmin: false,
+      readByStudent: true,
       createdAt: new Date().toISOString(),
       answeredAt: '',
       answeredBy: '',
@@ -2444,14 +2479,18 @@ async function createSupportMessage(request, response) {
 
     messages.unshift(supportMessage);
     await writeSupportMessages(messages);
-    await recordActivity({
-      userId: user.id,
-      userName: user.fullName || '',
-      userPhone: user.phone || '',
-      action: 'support_message',
-      label: 'طلب دعم مباشر',
-      details: messageText,
-    });
+    try {
+      await recordActivity({
+        userId: user.id,
+        userName: user.fullName || '',
+        userPhone: user.phone || '',
+        action: 'support_message',
+        label: 'طلب دعم مباشر',
+        details: messageText,
+      });
+    } catch (error) {
+      console.log('Support activity log error:', error.message);
+    }
 
     sendJson(response, 201, { message: publicSupportMessage(supportMessage) });
   } catch {
@@ -2483,15 +2522,19 @@ async function createAdminSupportMessage(request, response) {
 
   try {
     const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
     const studentPhone = normalizePhone(payload.studentPhone || '');
     const message = String(payload.message || '').trim();
 
-    if (!studentPhone || !message) {
+    if ((!studentId && !studentPhone) || !message) {
       sendJson(response, 400, { message: 'من فضلك اكتب رقم الهاتف والنص.' });
       return;
     }
 
-    const student = await findUserByPhone(studentPhone);
+    const users = await readUsers();
+    const student = studentId
+      ? users.find((user) => user.id === studentId)
+      : users.find((user) => normalizePhone(user.phone) === studentPhone);
     if (!student || normalizeRole(student.role) !== 'student') {
       sendJson(response, 404, { message: 'الطالب غير موجود.' });
       return;
@@ -2502,35 +2545,87 @@ async function createAdminSupportMessage(request, response) {
       id: crypto.randomUUID(),
       studentId: student.id,
       studentName: student.fullName || '',
-      message: '',
-      answer: message,
-      status: 'answered',
+      studentPhone: student.phone || '',
+      sender: 'admin',
+      message,
+      answer: '',
+      status: 'sent',
+      readByAdmin: true,
+      readByStudent: false,
       createdAt: new Date().toISOString(),
-      answeredAt: new Date().toISOString(),
+      answeredAt: '',
       answeredBy: adminSession.name || 'Admin',
     };
 
     messages.unshift(supportMessage);
     await writeSupportMessages(messages);
-    await recordActivity({
-      userId: student.id,
-      userName: student.fullName || '',
-      userPhone: student.phone || '',
-      action: 'support_message',
-      label: 'رسالة من الإدارة إلى الطالب',
-      details: message,
-    });
+    try {
+      await recordActivity({
+        userId: student.id,
+        userName: student.fullName || '',
+        userPhone: student.phone || '',
+        action: 'support_message',
+        label: 'رسالة من الإدارة إلى الطالب',
+        details: message,
+      });
+    } catch (error) {
+      console.log('Support activity log error:', error.message);
+    }
 
-    await sendPushNotificationToUser(student.id, {
-      id: crypto.randomUUID(),
-      title: 'رسالة جديدة من الدعم',
-      body: message,
-      type: 'support',
-    });
+    try {
+      await sendPushNotificationToUser(student.id, {
+        id: crypto.randomUUID(),
+        title: 'رسالة جديدة من الدعم',
+        body: message,
+        type: 'support',
+      });
+    } catch (error) {
+      console.log('Support push notification error:', error.message);
+    }
 
     sendJson(response, 201, { message: publicSupportMessage(supportMessage) });
   } catch {
     sendJson(response, 500, { message: 'تعذر إرسال الرسالة.' });
+  }
+}
+
+async function markAdminSupportMessagesRead(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const studentId = String(payload.studentId || '').trim();
+
+    if (!studentId) {
+      sendJson(response, 400, { message: 'Student data is missing.' });
+      return;
+    }
+
+    const messages = await readSupportMessages();
+    let changed = false;
+
+    for (const message of messages) {
+      if (
+        message.studentId === studentId &&
+        (message.sender || 'student') === 'student'
+      ) {
+        if (message.readByAdmin !== true) {
+          message.readByAdmin = true;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      await writeSupportMessages(messages);
+    }
+
+    sendJson(response, 200, { message: 'Messages marked as read.' });
+  } catch {
+    sendJson(response, 500, { message: 'Could not mark messages as read.' });
   }
 }
 
@@ -3476,6 +3571,14 @@ const server = http.createServer(async (request, response) => {
       await createAdminSupportMessage(request, response);
       return;
     }
+  }
+
+  if (
+    request.method === 'POST' &&
+    url.pathname === '/api/admin/support-messages/read'
+  ) {
+    await markAdminSupportMessagesRead(request, response);
+    return;
   }
 
   if (request.method === 'GET' && url.pathname === '/api/admin/watch-report') {

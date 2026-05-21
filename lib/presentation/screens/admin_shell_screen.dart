@@ -137,9 +137,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       AdminCoursesPage(session: widget.session),
       AdminBooksPage(session: widget.session),
       AdminQuestionsPage(session: widget.session),
-      AdminSupportChatPage(
-        token: widget.session.token,
-      ),
+      AdminSupportChatPage(token: widget.session.token),
       AdminNotificationsPage(session: widget.session),
     ];
     final isWide = MediaQuery.sizeOf(context).width >= 850;
@@ -1975,7 +1973,8 @@ class _AdminCertificatesPageState extends State<AdminCertificatesPage> {
       builder: (context, snapshot) {
         final isLoading = snapshot.connectionState == ConnectionState.waiting;
         final report = snapshot.data;
-        final finalResults = report?.results
+        final finalResults =
+            report?.results
                 .where((result) => result.type == 'level_final')
                 .toList() ??
             const <ExamResult>[];
@@ -2041,7 +2040,9 @@ class _AdminCertificateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = result.passed ? Colors.green : Colors.redAccent;
-    final studentName = result.studentName.isEmpty ? 'طالب' : result.studentName;
+    final studentName = result.studentName.isEmpty
+        ? 'طالب'
+        : result.studentName;
     final courseTitle = result.courseTitle.isEmpty ? '-' : result.courseTitle;
     final levelTitle = result.levelTitle.isEmpty ? '-' : result.levelTitle;
 
@@ -3665,9 +3666,16 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
 
     setState(() => _isSending = true);
     try {
-      await _service.createNotification(widget.session.token, result);
+      final pushFailureReason = await _service.createNotification(
+        widget.session.token,
+        result,
+      );
       if (!mounted) return;
-      _showMessage('تم إرسال الإشعار.');
+      if (pushFailureReason == null) {
+        _showMessage('تم إرسال الإشعار.');
+      } else {
+        _showMessage('تم حفظ الإشعار، لكن الـ Push فشل: $pushFailureReason');
+      }
       _refresh();
     } on AuthApiException catch (error) {
       if (!mounted) return;
@@ -6620,7 +6628,9 @@ class _BookDialogState extends State<_BookDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _selectedLanguage.isEmpty ? null : _selectedLanguage,
+              initialValue: _selectedLanguage.isEmpty
+                  ? null
+                  : _selectedLanguage,
               decoration: const InputDecoration(labelText: 'اللغة'),
               items: _languageOptions
                   .map(

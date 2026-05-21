@@ -169,6 +169,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
       await _service.sendAdminMessage(
         token: widget.token,
         studentId: conversation.studentId,
+        studentPhone: conversation.studentPhone,
         message: text,
       );
 

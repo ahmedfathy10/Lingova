@@ -70,12 +70,15 @@ class SupportApiService {
   Future<SupportMessage> sendAdminMessage({
     required String token,
     required String studentId,
+    String? studentPhone,
     required String message,
   }) async {
     final response = await postJson(
       Uri.parse('${ApiConfig.baseUrl}/api/admin/support-messages'),
       {
         'studentId': studentId,
+        if (studentPhone != null && studentPhone.trim().isNotEmpty)
+          'studentPhone': studentPhone.trim(),
         'message': message,
       },
       headers: _headers(token),
