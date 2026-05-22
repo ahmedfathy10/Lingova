@@ -3,6 +3,7 @@
 import '../../core/app_colors.dart';
 import '../../data/models/register_request.dart';
 import '../../data/services/auth_api_service.dart';
+import '../../data/services/auth_storage_service.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/auth_header.dart';
 import 'main_screen.dart';
@@ -133,6 +134,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           referralReason: _referralReasonController.text.trim(),
         ),
       );
+
+      await AuthStorageService.saveUser(user);
 
       if (!mounted) return;
 

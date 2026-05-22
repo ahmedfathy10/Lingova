@@ -6,6 +6,7 @@ class AppNotification {
   final String body;
   final String timeLabel;
   final IconData icon;
+  final DateTime? createdAt;
   final bool isRead;
 
   const AppNotification({
@@ -14,6 +15,7 @@ class AppNotification {
     required this.body,
     required this.timeLabel,
     required this.icon,
+    this.createdAt,
     this.isRead = false,
   });
 
@@ -24,6 +26,7 @@ class AppNotification {
       body: body,
       timeLabel: timeLabel,
       icon: icon,
+      createdAt: createdAt,
       isRead: isRead ?? this.isRead,
     );
   }

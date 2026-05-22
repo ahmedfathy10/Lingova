@@ -4,16 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/api_config.dart';
+import '../models/auth_user.dart';
 import '../../domain/entities/app_notification.dart';
 import '../services/auth_http_client.dart';
 
 class NotificationApiDataSource {
-  static final Set<String> _readIds = <String>{};
   static const _readIdsKey = 'read_notification_ids';
-  static bool _readIdsLoaded = false;
+  static const _notificationStartPrefix = 'notification_start_at_';
+
+  final AuthUser? user;
+  final Set<String> _readIds = <String>{};
+  bool _readIdsLoaded = false;
+
+  NotificationApiDataSource({this.user});
 
   Future<List<AppNotification>> getNotifications() async {
     await _loadReadIds();
+    final notificationStartAt = await _notificationStartAt();
     final response = await getJson(
       Uri.parse('${ApiConfig.baseUrl}/api/notifications'),
     );
@@ -26,6 +33,10 @@ class NotificationApiDataSource {
     return items
         .whereType<Map<String, dynamic>>()
         .map(_mapNotification)
+        .where(
+          (notification) =>
+              _isVisibleForCurrentUser(notification, notificationStartAt),
+        )
         .toList();
   }
 
@@ -54,13 +65,52 @@ class NotificationApiDataSource {
     final prefs = await SharedPreferences.getInstance();
     _readIds
       ..clear()
-      ..addAll(prefs.getStringList(_readIdsKey) ?? const []);
+      ..addAll(prefs.getStringList(_readIdsStorageKey) ?? const []);
     _readIdsLoaded = true;
   }
 
   Future<void> _saveReadIds() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_readIdsKey, _readIds.toList(growable: false));
+    await prefs.setStringList(
+      _readIdsStorageKey,
+      _readIds.toList(growable: false),
+    );
+  }
+
+  String get _readIdsStorageKey {
+    final userId = user?.id ?? '';
+    return userId.isEmpty ? _readIdsKey : '${_readIdsKey}_$userId';
+  }
+
+  Future<DateTime?> _notificationStartAt() async {
+    final currentUser = user;
+    if (currentUser == null || currentUser.id.isEmpty) {
+      return null;
+    }
+    if (currentUser.createdAt != null) {
+      return currentUser.createdAt;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString('$_notificationStartPrefix${currentUser.id}');
+    return DateTime.tryParse(stored ?? '');
+  }
+
+  bool _isVisibleForCurrentUser(
+    AppNotification notification,
+    DateTime? notificationStartAt,
+  ) {
+    final currentUser = user;
+    if (currentUser == null || currentUser.id.isEmpty) {
+      return true;
+    }
+
+    final notificationDate = notification.createdAt;
+    if (notificationDate == null || notificationStartAt == null) {
+      return true;
+    }
+
+    return !notificationDate.isBefore(notificationStartAt);
   }
 
   AppNotification _mapNotification(Map<String, dynamic> json) {
@@ -73,6 +123,7 @@ class NotificationApiDataSource {
       body: json['body']?.toString() ?? '',
       timeLabel: _buildTimeLabel(createdAt),
       icon: _iconForType(json['type']?.toString() ?? 'general'),
+      createdAt: createdAt,
       isRead: _readIds.contains(id),
     );
   }

@@ -439,7 +439,10 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
                 onChanged: (value) {
                   setState(() => _answers[question.id] = value);
                 },
-                title: Text(option, textAlign: TextAlign.right),
+                title: Text(
+                  _optionLabel(question, option),
+                  textAlign: TextAlign.right,
+                ),
               );
             }),
         ],
@@ -452,6 +455,32 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
       return const ['صح', 'خطأ'];
     }
     return question.options;
+  }
+
+  String _optionLabel(ExamQuestion question, String option) {
+    if (question.type != 'true_false') {
+      return option;
+    }
+
+    final normalized = option.trim().toLowerCase();
+    final isTrueAnswer =
+        normalized == 'صح' || normalized == 'true' || normalized == 'richtig';
+    final isGermanCourse = _isGerman(widget.exam.courseLanguage);
+
+    if (isGermanCourse) {
+      return isTrueAnswer ? 'Richtig' : 'Falsch';
+    }
+    return isTrueAnswer ? 'True' : 'False';
+  }
+
+  bool _isGerman(String language) {
+    final normalized = language.trim().toLowerCase();
+    return normalized.contains('german') ||
+        normalized.contains('deutsch') ||
+        normalized.contains('ألماني') ||
+        normalized.contains('الماني') ||
+        normalized.contains('الألمانية') ||
+        normalized.contains('الالمانية');
   }
 }
 

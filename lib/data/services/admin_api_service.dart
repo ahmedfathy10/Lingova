@@ -13,8 +13,13 @@ import 'auth_http_client.dart';
 class AdminSession {
   final String token;
   final String name;
+  final String email;
 
-  const AdminSession({required this.token, required this.name});
+  const AdminSession({
+    required this.token,
+    required this.name,
+    required this.email,
+  });
 }
 
 class AdminApiService {
@@ -32,6 +37,7 @@ class AdminApiService {
       return AdminSession(
         token: json['token']?.toString() ?? '',
         name: (json['admin'] as Map?)?['name']?.toString() ?? 'Admin',
+        email: (json['admin'] as Map?)?['email']?.toString() ?? '',
       );
     }
 

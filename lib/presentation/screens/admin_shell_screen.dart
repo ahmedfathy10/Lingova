@@ -1,4 +1,5 @@
 import 'admin_support_chat_page.dart';
+import 'admin_community_page.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
@@ -7,7 +8,6 @@ import '../../data/models/admin_book.dart';
 import '../../data/models/admin_course_part.dart';
 import '../../data/models/admin_subscription_request.dart';
 import '../../data/models/admin_user.dart';
-import '../../data/models/support_message.dart';
 import '../../data/models/course_question.dart';
 import '../../data/models/exam.dart';
 import '../../data/models/watch_progress_record.dart';
@@ -16,7 +16,6 @@ import '../../data/services/admin_api_service.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/course_image_picker.dart';
 import '../../data/services/exam_api_service.dart';
-import '../../data/services/support_api_service.dart';
 import '../../data/services/text_file_downloader.dart';
 import '../../data/services/watch_progress_api_service.dart';
 import 'admin_login_screen.dart';
@@ -116,6 +115,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           label: Text('الشات'),
         ),
         NavigationDrawerDestination(
+          icon: Icon(Icons.groups_outlined),
+          selectedIcon: Icon(Icons.groups_rounded),
+          label: Text('المجتمع'),
+        ),
+        NavigationDrawerDestination(
           icon: Icon(Icons.notifications_outlined),
           selectedIcon: Icon(Icons.notifications_rounded),
           label: Text('الإشعارات'),
@@ -138,6 +142,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       AdminBooksPage(session: widget.session),
       AdminQuestionsPage(session: widget.session),
       AdminSupportChatPage(token: widget.session.token),
+      AdminCommunityPage(token: widget.session.token),
       AdminNotificationsPage(session: widget.session),
     ];
     final isWide = MediaQuery.sizeOf(context).width >= 850;
@@ -228,6 +233,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   icon: Icon(Icons.support_agent_outlined),
                   selectedIcon: Icon(Icons.support_agent_rounded),
                   label: Text('الشات'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.groups_outlined),
+                  selectedIcon: Icon(Icons.groups_rounded),
+                  label: Text('المجتمع'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.notifications_outlined),

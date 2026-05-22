@@ -3,6 +3,7 @@ class AuthUser {
   final String fullName;
   final String phone;
   final String language;
+  final DateTime? createdAt;
   final List<UserEnrollment> enrollments;
 
   const AuthUser({
@@ -10,6 +11,7 @@ class AuthUser {
     required this.fullName,
     required this.phone,
     required this.language,
+    this.createdAt,
     this.enrollments = const [],
   });
 
@@ -19,6 +21,7 @@ class AuthUser {
       fullName: json['fullName']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       language: json['language']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
       enrollments: (json['enrollments'] as List? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(UserEnrollment.fromJson)
@@ -32,6 +35,7 @@ class AuthUser {
       'fullName': fullName,
       'phone': phone,
       'language': language,
+      'createdAt': createdAt?.toIso8601String(),
       'enrollments': enrollments.map((e) => e.toJson()).toList(),
     };
   }

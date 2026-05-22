@@ -10,7 +10,6 @@ android {
     compileSdk = flutter.compileSdkVersion
 
     defaultConfig {
-        applicationId = "com.example.lingova_app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -22,12 +21,13 @@ android {
     productFlavors {
         create("user") {
             dimension = "app"
+            applicationId = "com.example.lingova_app"
             resValue("string", "app_name", "Lingova")
         }
 
         create("admin") {
             dimension = "app"
-            applicationIdSuffix = ".admin"
+            applicationId = "com.lingova.admin"
             resValue("string", "app_name", "Lingova Admin")
         }
     }

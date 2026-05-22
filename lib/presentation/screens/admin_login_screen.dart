@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../data/services/admin_api_service.dart';
 import '../../data/services/auth_api_service.dart';
+import '../../data/services/push_notification_service.dart';
 import '../widgets/app_text_field.dart';
 import 'admin_shell_screen.dart';
 
@@ -38,6 +39,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       final session = await _service.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+      );
+      await PushNotificationService.instance.bindAdmin(
+        adminId: session.email.isNotEmpty ? session.email : 'system-admin',
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(

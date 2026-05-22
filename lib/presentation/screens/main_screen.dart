@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../data/models/auth_user.dart';
 import '../../data/services/auth_api_service.dart';
+import '../../data/services/auth_storage_service.dart';
 import '../../data/services/push_notification_service.dart';
 import 'courses_page.dart';
 import 'exams_page.dart';
 import 'home_screen.dart';
-import 'library_page.dart';
+import 'live_support_page.dart';
 import 'more_page.dart';
 
 class MainScreen extends StatefulWidget {
@@ -66,6 +67,8 @@ class _MainScreenState extends State<MainScreen> {
     try {
       final freshUser = await _authApiService.getUser(user.id);
       if (!mounted) return;
+      await AuthStorageService.saveUser(freshUser);
+      if (!mounted) return;
       setState(() => _currentUser = freshUser);
       PushNotificationService.instance.bindUser(freshUser);
     } catch (_) {}
@@ -87,16 +90,13 @@ class _MainScreenState extends State<MainScreen> {
         onViewCourses: _openCourses,
       ),
       CoursesPage(initialFilter: courseFilter, user: _currentUser),
-      const LibraryPage(),
+      const LiveSupportPage(),
       ExamsPage(user: _currentUser),
       const MorePage(),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: currentIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: currentIndex, children: pages),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -130,8 +130,8 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () => _selectTab(1),
               ),
               _NavItem(
-                icon: Icons.library_books_rounded,
-                label: 'المكتبة',
+                icon: Icons.support_agent_rounded,
+                label: 'الشات',
                 isSelected: currentIndex == 2,
                 onTap: () => _selectTab(2),
               ),
@@ -164,7 +164,13 @@ class _MainScreenState extends State<MainScreen> {
       }
       currentIndex = index;
     });
-    const labels = ['الرئيسية', 'الكورسات', 'المكتبة', 'الامتحانات', 'المزيد'];
+    const labels = [
+      'الرئيسية',
+      'الكورسات',
+      'الشات المباشر',
+      'الامتحانات',
+      'المزيد',
+    ];
     _trackActivity('navigate', 'تنقل داخل التطبيق', details: labels[index]);
   }
 }

@@ -2,11 +2,46 @@ import 'dart:convert';
 
 import '../../core/api_config.dart';
 import '../../domain/entities/course_content.dart';
+import '../models/auth_user.dart';
 import '../models/watch_progress_record.dart';
 import 'auth_api_service.dart';
 import 'auth_http_client.dart';
 
 class WatchProgressApiService {
+  Future<WatchProgressRecord?> getLatestProgressForUser(AuthUser user) async {
+    final records = <WatchProgressRecord>[];
+    for (final enrollment in user.enrollments) {
+      try {
+        final courseRecords = await getCourseProgress(
+          studentId: user.id,
+          courseTitle: enrollment.courseTitle,
+          courseLanguage: enrollment.courseLanguage,
+        );
+        records.addAll(courseRecords);
+      } catch (_) {}
+    }
+
+    if (records.isEmpty) {
+      return null;
+    }
+
+    records.sort((a, b) {
+      final aDate = DateTime.tryParse(a.completedAt);
+      final bDate = DateTime.tryParse(b.completedAt);
+      if (aDate == null && bDate == null) {
+        return b.watchDate.compareTo(a.watchDate);
+      }
+      if (aDate == null) {
+        return 1;
+      }
+      if (bDate == null) {
+        return -1;
+      }
+      return bDate.compareTo(aDate);
+    });
+    return records.first;
+  }
+
   Future<List<WatchProgressRecord>> getCourseProgress({
     required String studentId,
     required String courseTitle,

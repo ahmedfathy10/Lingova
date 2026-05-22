@@ -7,9 +7,28 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:3125746763:android:admin_app_id_here",
+        "mobilesdk_app_id": "1:3125746763:android:feb2b362ef4137bb6441ce",
         "android_client_info": {
-          "package_name": "com.example.lingova_app.admin"
+          "package_name": "com.example.lingova_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtsswj-w2ffzcfQ-OLQAKRcR6I8712s3M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:3125746763:android:54c94b33c6884cba6441ce",
+        "android_client_info": {
+          "package_name": "com.lingova.admin"
         }
       },
       "oauth_client": [],

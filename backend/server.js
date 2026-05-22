@@ -722,6 +722,33 @@ function publicCommunityPost(post) {
   };
 }
 
+function publicCommunityPostDetailed(post, viewerStudentId = '') {
+  const reactions = post.reactions && typeof post.reactions === 'object'
+    ? post.reactions
+    : {};
+  const comments = Array.isArray(post.comments) ? post.comments : [];
+  const reactionValues = Object.values(reactions);
+  return {
+    id: post.id,
+    studentId: post.studentId || '',
+    authorName: post.authorName || 'مستخدم',
+    message: post.message || '',
+    createdAt: post.createdAt,
+    likesCount: reactionValues.filter((reaction) => reaction === 'like').length,
+    dislikesCount: reactionValues.filter((reaction) => reaction === 'dislike').length,
+    commentsCount: comments.length,
+    sharesCount: Number(post.sharesCount || 0),
+    userReaction: viewerStudentId ? reactions[viewerStudentId] || '' : '',
+    comments: comments.map((comment) => ({
+      id: comment.id,
+      studentId: comment.studentId || '',
+      authorName: comment.authorName || 'مستخدم',
+      message: comment.message || '',
+      createdAt: comment.createdAt || '',
+    })),
+  };
+}
+
 function publicWatchProgress(record) {
   return {
     id: record.id,
@@ -869,6 +896,7 @@ function publicDeviceToken(deviceToken) {
   return {
     id: deviceToken.id,
     userId: deviceToken.userId,
+    role: deviceToken.role || 'student',
     token: deviceToken.token,
     platform: deviceToken.platform || 'unknown',
     createdAt: deviceToken.createdAt,
@@ -983,6 +1011,12 @@ async function register(request, response) {
       details: user.language || '',
     });
 
+    await notifyAdmins(
+      'تسجيل عميل جديد',
+      `${user.fullName || 'طالب جديد'} سجل حساب جديد في Lingova.`,
+      'admin_new_user'
+    );
+
     sendJson(response, 201, {
       message: 'Account created successfully.',
       user: {
@@ -1016,7 +1050,17 @@ async function login(request, response) {
     const users = await readUsers();
     const user = users.find((currentUser) => currentUser.phone === phone);
 
-    if (!user) {
+    const isSystemAdmin =
+      role === 'admin' &&
+      (userId === 'system-admin' || userId.toLowerCase() === adminEmail.toLowerCase());
+    const isStoredAdmin =
+      role === 'admin' &&
+      users.some((currentUser) => {
+        const userIdentifier = String(currentUser.phone || currentUser.id || '').toLowerCase();
+        return normalizeRole(currentUser.role) === 'admin' &&
+          (currentUser.id === userId || userIdentifier === userId.toLowerCase());
+      });
+    if (!user && !isSystemAdmin && !isStoredAdmin) {
       sendJson(response, 404, {
         message: 'انت مش مشترك، أنشئ حساب جديد.',
       });
@@ -1271,6 +1315,9 @@ async function registerDeviceToken(request, response) {
     const userId = String(payload.userId || '').trim();
     const token = String(payload.token || '').trim();
     const platform = String(payload.platform || 'unknown').trim();
+    const role = String(payload.role || 'student').trim() === 'admin'
+      ? 'admin'
+      : 'student';
 
     if (!userId || !token) {
       sendJson(response, 400, { message: 'بيانات الجهاز غير مكتملة.' });
@@ -1288,12 +1335,14 @@ async function registerDeviceToken(request, response) {
     const existing = deviceTokens.find((item) => item.token === token);
     if (existing) {
       existing.userId = userId;
+      existing.role = role;
       existing.platform = platform;
       existing.updatedAt = new Date().toISOString();
     } else {
       deviceTokens.push({
         id: crypto.randomUUID(),
         userId,
+        role,
         token,
         platform,
         createdAt: new Date().toISOString(),
@@ -1316,6 +1365,7 @@ async function sendPushNotification(notification) {
 
   const deviceTokens = await readDeviceTokens();
   const tokens = deviceTokens
+    .filter((item) => String(item.role || 'student').trim() !== 'admin')
     .map((item) => String(item.token || '').trim())
     .filter(Boolean);
 
@@ -1448,6 +1498,92 @@ async function sendPushNotificationToUser(userId, notification) {
       successCount: result.successCount,
       failureCount: result.failureCount,
     };
+  } catch {
+    return { sent: false, reason: 'send_failed' };
+  }
+}
+
+async function sendPushNotificationToAdmins(notification) {
+  const messaging = getFirebaseMessaging();
+  if (!messaging) {
+    return { sent: false, reason: 'firebase_unavailable' };
+  }
+
+  const deviceTokens = await readDeviceTokens();
+  const tokens = deviceTokens
+    .filter((item) => String(item.role || '').trim() === 'admin')
+    .map((item) => String(item.token || '').trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    return { sent: false, reason: 'no_admin_tokens' };
+  }
+
+  try {
+    const result = await messaging.sendEachForMulticast({
+      tokens,
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
+      data: {
+        notificationId: notification.id || crypto.randomUUID(),
+        type: notification.type || 'admin',
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'lingova_notifications',
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
+    });
+
+    const invalidTokens = [];
+    result.responses.forEach((item, index) => {
+      if (item.success) {
+        return;
+      }
+      const code = item.error?.code || '';
+      if (
+        code.includes('registration-token-not-registered') ||
+        code.includes('invalid-argument')
+      ) {
+        invalidTokens.push(tokens[index]);
+      }
+    });
+
+    if (invalidTokens.length) {
+      const nextTokens = deviceTokens.filter(
+        (item) => !invalidTokens.includes(item.token)
+      );
+      await writeDeviceTokens(nextTokens);
+    }
+
+    return {
+      sent: result.successCount > 0,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+    };
+  } catch {
+    return { sent: false, reason: 'send_failed' };
+  }
+}
+
+async function notifyAdmins(title, body, type) {
+  try {
+    return await sendPushNotificationToAdmins({
+      id: crypto.randomUUID(),
+      title,
+      body,
+      type,
+    });
   } catch {
     return { sent: false, reason: 'send_failed' };
   }
@@ -2492,6 +2628,12 @@ async function createSupportMessage(request, response) {
       console.log('Support activity log error:', error.message);
     }
 
+    await notifyAdmins(
+      'رسالة شات جديدة',
+      `${user.fullName || 'طالب'} أرسل رسالة دعم جديدة.`,
+      'admin_new_chat'
+    );
+
     sendJson(response, 201, { message: publicSupportMessage(supportMessage) });
   } catch {
     sendJson(response, 500, { message: 'تعذر إرسال رسالة الدعم.' });
@@ -2734,6 +2876,245 @@ async function createCommunityPost(request, response) {
   }
 }
 
+async function listCommunityPosts(request, response) {
+  try {
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const viewerStudentId = String(url.searchParams.get('studentId') || '').trim();
+    const posts = await readCommunityPosts();
+    sendJson(response, 200, {
+      posts: posts.map((post) => publicCommunityPostDetailed(post, viewerStudentId)),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل منشورات المجتمع.' });
+  }
+}
+
+async function createCommunityPost(request, response) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const authorName = String(payload.authorName || '').trim();
+    const messageText = String(payload.message || '').trim();
+
+    if (!studentId || !messageText) {
+      sendJson(response, 400, { message: 'من فضلك اكتب المنشور.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات المستخدم غير موجودة.' });
+      return;
+    }
+    if ((user.status || 'active') === 'suspended') {
+      sendJson(response, 403, { message: 'تم حظر هذا الحساب من النشر في المجتمع.' });
+      return;
+    }
+
+    const posts = await readCommunityPosts();
+    const newPost = {
+      id: crypto.randomUUID(),
+      studentId,
+      authorName: authorName || user.fullName || 'مستخدم',
+      message: messageText,
+      reactions: {},
+      comments: [],
+      sharesCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    posts.unshift(newPost);
+    await writeCommunityPosts(posts);
+    await recordActivity({
+      userId: user.id,
+      userName: user.fullName || '',
+      userPhone: user.phone || '',
+      action: 'community_post',
+      label: 'منشور مجتمع',
+      details: messageText,
+    });
+
+    await notifyAdmins(
+      'بوست جديد في المجتمع',
+      `${user.fullName || authorName || 'طالب'} نشر بوست جديد في المجتمع.`,
+      'admin_new_community_post'
+    );
+    sendJson(response, 201, { post: publicCommunityPostDetailed(newPost, studentId) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر نشر المنشور.' });
+  }
+}
+
+async function reactToCommunityPost(request, response, postId) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const reaction = String(payload.reaction || '').trim();
+    if (!studentId || !['like', 'dislike', 'none'].includes(reaction)) {
+      sendJson(response, 400, { message: 'بيانات التفاعل غير مكتملة.' });
+      return;
+    }
+
+    const posts = await readCommunityPosts();
+    const post = posts.find((item) => item.id === postId);
+    if (!post) {
+      sendJson(response, 404, { message: 'المنشور غير موجود.' });
+      return;
+    }
+
+    post.reactions = post.reactions && typeof post.reactions === 'object'
+      ? post.reactions
+      : {};
+    if (reaction === 'none' || post.reactions[studentId] === reaction) {
+      delete post.reactions[studentId];
+    } else {
+      post.reactions[studentId] = reaction;
+    }
+    await writeCommunityPosts(posts);
+    sendJson(response, 200, { post: publicCommunityPostDetailed(post, studentId) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تسجيل التفاعل.' });
+  }
+}
+
+async function commentOnCommunityPost(request, response, postId) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const authorName = String(payload.authorName || '').trim();
+    const messageText = String(payload.message || '').trim();
+    if (!studentId || !messageText) {
+      sendJson(response, 400, { message: 'اكتب التعليق أولاً.' });
+      return;
+    }
+
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user) {
+      sendJson(response, 404, { message: 'بيانات المستخدم غير موجودة.' });
+      return;
+    }
+    if ((user.status || 'active') === 'suspended') {
+      sendJson(response, 403, { message: 'تم حظر هذا الحساب من التعليق في المجتمع.' });
+      return;
+    }
+
+    const posts = await readCommunityPosts();
+    const post = posts.find((item) => item.id === postId);
+    if (!post) {
+      sendJson(response, 404, { message: 'المنشور غير موجود.' });
+      return;
+    }
+    post.comments = Array.isArray(post.comments) ? post.comments : [];
+    post.comments.push({
+      id: crypto.randomUUID(),
+      studentId,
+      authorName: authorName || user.fullName || 'مستخدم',
+      message: messageText,
+      createdAt: new Date().toISOString(),
+    });
+    await writeCommunityPosts(posts);
+    sendJson(response, 201, { post: publicCommunityPostDetailed(post, studentId) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إضافة التعليق.' });
+  }
+}
+
+async function shareCommunityPost(request, response, postId) {
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const studentId = String(payload.studentId || '').trim();
+    const posts = await readCommunityPosts();
+    const post = posts.find((item) => item.id === postId);
+    if (!post) {
+      sendJson(response, 404, { message: 'المنشور غير موجود.' });
+      return;
+    }
+    post.sharesCount = Number(post.sharesCount || 0) + 1;
+    await writeCommunityPosts(posts);
+    sendJson(response, 200, { post: publicCommunityPostDetailed(post, studentId) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر مشاركة المنشور.' });
+  }
+}
+
+async function listAdminCommunityPosts(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const posts = await readCommunityPosts();
+    sendJson(response, 200, {
+      posts: posts.map((post) => publicCommunityPostDetailed(post)),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل منشورات المجتمع.' });
+  }
+}
+
+async function deleteAdminCommunityPost(request, response, postId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const posts = await readCommunityPosts();
+    const nextPosts = posts.filter((post) => post.id !== postId);
+    if (nextPosts.length === posts.length) {
+      sendJson(response, 404, { message: 'المنشور غير موجود.' });
+      return;
+    }
+    await writeCommunityPosts(nextPosts);
+    sendJson(response, 200, { message: 'تم حذف المنشور.' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف المنشور.' });
+  }
+}
+
+async function deleteAdminCommunityComment(request, response, postId, commentId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const posts = await readCommunityPosts();
+    const post = posts.find((item) => item.id === postId);
+    if (!post) {
+      sendJson(response, 404, { message: 'المنشور غير موجود.' });
+      return;
+    }
+    post.comments = Array.isArray(post.comments) ? post.comments : [];
+    const nextComments = post.comments.filter((comment) => comment.id !== commentId);
+    if (nextComments.length === post.comments.length) {
+      sendJson(response, 404, { message: 'التعليق غير موجود.' });
+      return;
+    }
+    post.comments = nextComments;
+    await writeCommunityPosts(posts);
+    sendJson(response, 200, { post: publicCommunityPostDetailed(post) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف التعليق.' });
+  }
+}
+
+async function banCommunityUser(request, response, studentId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const users = await readUsers();
+    const user = users.find((currentUser) => currentUser.id === studentId);
+    if (!user) {
+      sendJson(response, 404, { message: 'المستخدم غير موجود.' });
+      return;
+    }
+    user.status = 'suspended';
+    await writeUsers(users);
+    sendJson(response, 200, { user: publicUser(user) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حظر المستخدم.' });
+  }
+}
+
 async function createSubscriptionRequest(request, response) {
   try {
     const payload = JSON.parse(await readBody(request));
@@ -2812,6 +3193,11 @@ async function createSubscriptionRequest(request, response) {
       label: 'طلب شراء كورس',
       details: `${courseLanguage} - ${courseTitle}`,
     });
+    await notifyAdmins(
+      'طلب شراء جديد',
+      `${user.fullName || 'طالب'} طلب شراء ${courseTitle}.`,
+      'admin_new_subscription'
+    );
     sendJson(response, 201, {
       message: 'تم إرسال طلب الاشتراك.',
       subscription: publicSubscription(subscription),
@@ -3529,6 +3915,30 @@ const server = http.createServer(async (request, response) => {
     }
   }
 
+  const communityReactionMatch = url.pathname.match(
+    /^\/api\/community\/posts\/([^/]+)\/reaction$/
+  );
+  if (communityReactionMatch && request.method === 'POST') {
+    await reactToCommunityPost(request, response, communityReactionMatch[1]);
+    return;
+  }
+
+  const communityCommentMatch = url.pathname.match(
+    /^\/api\/community\/posts\/([^/]+)\/comments$/
+  );
+  if (communityCommentMatch && request.method === 'POST') {
+    await commentOnCommunityPost(request, response, communityCommentMatch[1]);
+    return;
+  }
+
+  const communityShareMatch = url.pathname.match(
+    /^\/api\/community\/posts\/([^/]+)\/share$/
+  );
+  if (communityShareMatch && request.method === 'POST') {
+    await shareCommunityPost(request, response, communityShareMatch[1]);
+    return;
+  }
+
   if (url.pathname === '/api/watch-progress') {
     if (request.method === 'GET') {
       await listStudentWatchProgress(request, response, url);
@@ -3583,6 +3993,11 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === 'GET' && url.pathname === '/api/admin/watch-report') {
     await listAdminWatchReport(request, response, url);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/admin/community/posts') {
+    await listAdminCommunityPosts(request, response);
     return;
   }
 
@@ -3765,6 +4180,35 @@ const server = http.createServer(async (request, response) => {
   );
   if (supportAnswerActionMatch && request.method === 'POST') {
     await answerSupportMessage(request, response, supportAnswerActionMatch[1]);
+    return;
+  }
+
+  const adminCommunityDeleteMatch = url.pathname.match(
+    /^\/api\/admin\/community\/posts\/([^/]+)\/delete$/
+  );
+  if (adminCommunityDeleteMatch && request.method === 'POST') {
+    await deleteAdminCommunityPost(request, response, adminCommunityDeleteMatch[1]);
+    return;
+  }
+
+  const adminCommunityCommentDeleteMatch = url.pathname.match(
+    /^\/api\/admin\/community\/posts\/([^/]+)\/comments\/([^/]+)\/delete$/
+  );
+  if (adminCommunityCommentDeleteMatch && request.method === 'POST') {
+    await deleteAdminCommunityComment(
+      request,
+      response,
+      adminCommunityCommentDeleteMatch[1],
+      adminCommunityCommentDeleteMatch[2]
+    );
+    return;
+  }
+
+  const adminCommunityBanMatch = url.pathname.match(
+    /^\/api\/admin\/community\/users\/([^/]+)\/ban$/
+  );
+  if (adminCommunityBanMatch && request.method === 'POST') {
+    await banCommunityUser(request, response, adminCommunityBanMatch[1]);
     return;
   }
 

@@ -47,7 +47,7 @@ class PushNotificationService {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       await _localNotifications.initialize(
-        const InitializationSettings(
+        settings: const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
           iOS: DarwinInitializationSettings(),
         ),
@@ -118,12 +118,51 @@ class PushNotificationService {
     } catch (_) {}
   }
 
-  Future<void> _registerToken(String token, String userId) async {
+  Future<void> bindAdmin({required String adminId}) async {
+    if (adminId.isEmpty || kIsWeb) {
+      return;
+    }
+
+    _currentUserId = adminId;
+    await prepareApp();
+    if (!_prepared) {
+      return;
+    }
+
+    try {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _registerToken(token, adminId, role: 'admin');
+      }
+
+      _tokenRefreshSubscription ??= FirebaseMessaging.instance.onTokenRefresh
+          .listen((token) async {
+            final currentUserId = _currentUserId;
+            if (currentUserId == null || currentUserId.isEmpty) {
+              return;
+            }
+            await _registerToken(token, currentUserId, role: 'admin');
+          });
+    } catch (_) {}
+  }
+
+  Future<void> _registerToken(
+    String token,
+    String userId, {
+    String role = 'student',
+  }) async {
     try {
       await postJson(Uri.parse('${ApiConfig.baseUrl}/api/devices/register'), {
         'userId': userId,
         'token': token,
         'platform': defaultTargetPlatform.name,
+        'role': role,
       });
     } catch (_) {}
   }
@@ -135,10 +174,10 @@ class PushNotificationService {
     }
 
     await _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: notification.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _channel.id,
           _channel.name,

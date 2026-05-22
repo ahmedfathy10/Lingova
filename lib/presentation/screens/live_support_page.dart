@@ -143,7 +143,7 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
 
     final bubbleColor = isMe ? const Color(0xFFD9FDD3) : Colors.white;
 
-    final textColor = isMe ? Colors.black87 : AppColors.textPrimary;
+    final textColor = isMe ? Colors.black87 : const Color(0xFF111827);
 
     final alignment = isMe ? Alignment.centerRight : Alignment.centerLeft;
 
@@ -165,7 +165,7 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
           borderRadius: borderRadius,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 3,
               offset: const Offset(0, 1),
             ),
@@ -192,7 +192,10 @@ class _LiveSupportPageState extends State<LiveSupportPage> {
               children: [
                 Text(
                   _formatTime(message.createdAt),
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                  style: TextStyle(
+                    color: isMe ? Colors.grey.shade600 : Colors.grey.shade700,
+                    fontSize: 11,
+                  ),
                 ),
                 if (isMe) ...[
                   const SizedBox(width: 5),

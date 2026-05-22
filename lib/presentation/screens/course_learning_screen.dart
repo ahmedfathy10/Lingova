@@ -224,7 +224,7 @@ class _CourseLearningScreenState extends State<CourseLearningScreen> {
     Navigator.of(context)
         .push(
           MaterialPageRoute(
-            builder: (_) => _VimeoPlayerScreen(
+            builder: (_) => VimeoPlayerScreen(
               title: part.title,
               url: part.vimeoUrl,
               content: widget.content,
@@ -802,7 +802,7 @@ class _ExamGateCard extends StatelessWidget {
   }
 }
 
-class _VimeoPlayerScreen extends StatefulWidget {
+class VimeoPlayerScreen extends StatefulWidget {
   final String url;
   final String title;
   final CourseContent content;
@@ -813,7 +813,8 @@ class _VimeoPlayerScreen extends StatefulWidget {
   final Set<String> completedUrls;
   final Future<void> Function(CoursePartContent part) onVideoWatched;
 
-  const _VimeoPlayerScreen({
+  const VimeoPlayerScreen({
+    super.key,
     required this.url,
     required this.title,
     required this.content,
@@ -826,10 +827,10 @@ class _VimeoPlayerScreen extends StatefulWidget {
   });
 
   @override
-  State<_VimeoPlayerScreen> createState() => _VimeoPlayerScreenState();
+  State<VimeoPlayerScreen> createState() => _VimeoPlayerScreenState();
 }
 
-class _VimeoPlayerScreenState extends State<_VimeoPlayerScreen> {
+class _VimeoPlayerScreenState extends State<VimeoPlayerScreen> {
   final _questionService = QuestionApiService();
   final Set<String> _completedUrls = {};
   Timer? _completionTimer;

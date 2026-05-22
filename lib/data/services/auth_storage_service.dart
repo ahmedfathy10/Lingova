@@ -6,6 +6,7 @@ import '../models/auth_user.dart';
 
 class AuthStorageService {
   static const _userKey = 'saved_auth_user';
+  static const _notificationStartPrefix = 'notification_start_at_';
 
   static Future<AuthUser?> loadUser() async {
     final prefs = await SharedPreferences.getInstance();
@@ -25,6 +26,14 @@ class AuthStorageService {
   static Future<void> saveUser(AuthUser user) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_userKey, jsonEncode(user.toJson()));
+    if (user.id.isNotEmpty) {
+      final key = '$_notificationStartPrefix${user.id}';
+      final existing = prefs.getString(key);
+      if (existing == null || existing.isEmpty) {
+        final startAt = user.createdAt ?? DateTime.now();
+        await prefs.setString(key, startAt.toIso8601String());
+      }
+    }
   }
 
   static Future<void> clearUser() async {

@@ -2,23 +2,27 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
 import '../../data/datasources/notification_api_datasource.dart';
+import '../../data/models/auth_user.dart';
 import '../../domain/entities/app_notification.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  final AuthUser? user;
+
+  const NotificationsScreen({super.key, this.user});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final _dataSource = NotificationApiDataSource();
+  late final NotificationApiDataSource _dataSource;
   late Future<List<AppNotification>> _future;
   List<AppNotification> _notifications = const [];
 
   @override
   void initState() {
     super.initState();
+    _dataSource = NotificationApiDataSource(user: widget.user);
     _future = _loadNotifications();
   }
 

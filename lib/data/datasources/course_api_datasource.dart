@@ -28,11 +28,23 @@ class CourseApiDataSource {
     required String studentId,
     required Course course,
   }) async {
+    return getCourseContentByTitle(
+      studentId: studentId,
+      courseTitle: course.title,
+      courseLanguage: course.language,
+    );
+  }
+
+  Future<CourseContent> getCourseContentByTitle({
+    required String studentId,
+    required String courseTitle,
+    required String courseLanguage,
+  }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/course-content').replace(
       queryParameters: {
         'studentId': studentId,
-        'courseTitle': course.title,
-        'courseLanguage': course.language,
+        'courseTitle': courseTitle,
+        'courseLanguage': courseLanguage,
       },
     );
     final response = await getJson(uri);
