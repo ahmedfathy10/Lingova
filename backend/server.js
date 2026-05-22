@@ -1050,17 +1050,7 @@ async function login(request, response) {
     const users = await readUsers();
     const user = users.find((currentUser) => currentUser.phone === phone);
 
-    const isSystemAdmin =
-      role === 'admin' &&
-      (userId === 'system-admin' || userId.toLowerCase() === adminEmail.toLowerCase());
-    const isStoredAdmin =
-      role === 'admin' &&
-      users.some((currentUser) => {
-        const userIdentifier = String(currentUser.phone || currentUser.id || '').toLowerCase();
-        return normalizeRole(currentUser.role) === 'admin' &&
-          (currentUser.id === userId || userIdentifier === userId.toLowerCase());
-      });
-    if (!user && !isSystemAdmin && !isStoredAdmin) {
+    if (!user) {
       sendJson(response, 404, {
         message: 'انت مش مشترك، أنشئ حساب جديد.',
       });
@@ -2817,62 +2807,6 @@ async function answerSupportMessage(request, response, messageId) {
     sendJson(response, 200, { message: publicSupportMessage(supportMessage) });
   } catch {
     sendJson(response, 500, { message: 'تعذر حفظ الرد.' });
-  }
-}
-
-async function listCommunityPosts(request, response) {
-  try {
-    const posts = await readCommunityPosts();
-    sendJson(response, 200, {
-      posts: posts.map(publicCommunityPost),
-    });
-  } catch {
-    sendJson(response, 500, { message: 'تعذر تحميل منشورات المجتمع.' });
-  }
-}
-
-async function createCommunityPost(request, response) {
-  try {
-    const payload = JSON.parse(await readBody(request));
-    const studentId = String(payload.studentId || '').trim();
-    const authorName = String(payload.authorName || '').trim();
-    const messageText = String(payload.message || '').trim();
-
-    if (!authorName || !messageText) {
-      sendJson(response, 400, { message: 'من فضلك اكتب المنشور.' });
-      return;
-    }
-
-    const users = await readUsers();
-    const user = users.find((currentUser) => currentUser.id === studentId);
-    if (!user) {
-      sendJson(response, 404, { message: 'بيانات المستخدم غير موجودة.' });
-      return;
-    }
-
-    const posts = await readCommunityPosts();
-    const newPost = {
-      id: crypto.randomUUID(),
-      studentId,
-      authorName: authorName || user.fullName || 'مستخدم',
-      message: messageText,
-      createdAt: new Date().toISOString(),
-    };
-
-    posts.unshift(newPost);
-    await writeCommunityPosts(posts);
-    await recordActivity({
-      userId: user.id,
-      userName: user.fullName || '',
-      userPhone: user.phone || '',
-      action: 'community_post',
-      label: 'منشور مجتمع',
-      details: messageText,
-    });
-
-    sendJson(response, 201, { post: publicCommunityPost(newPost) });
-  } catch {
-    sendJson(response, 500, { message: 'تعذر نشر المنشور.' });
   }
 }
 
