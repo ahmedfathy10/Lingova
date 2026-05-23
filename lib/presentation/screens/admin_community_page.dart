@@ -27,6 +27,46 @@ class _AdminCommunityPageState extends State<AdminCommunityPage> {
     setState(() => _postsFuture = _service.getAdminPosts(widget.token));
   }
 
+  void _replacePost(CommunityPost updatedPost) {
+    setState(() {
+      _postsFuture = _postsFuture.then((posts) {
+        return posts
+            .map((post) => post.id == updatedPost.id ? updatedPost : post)
+            .toList();
+      });
+    });
+  }
+
+  Future<void> _react(CommunityPost post, String reaction) async {
+    try {
+      final updatedPost = await _service.adminReact(
+        token: widget.token,
+        postId: post.id,
+        reaction: reaction,
+      );
+      _replacePost(updatedPost);
+    } on Exception catch (error) {
+      _showMessage(error.toString());
+    }
+  }
+
+  Future<void> _comment(CommunityPost post, String message) async {
+    final text = message.trim();
+    if (text.isEmpty) return;
+
+    try {
+      final updatedPost = await _service.adminComment(
+        token: widget.token,
+        postId: post.id,
+        message: text,
+      );
+      _replacePost(updatedPost);
+      _showMessage('تم إضافة التعليق.');
+    } on Exception catch (error) {
+      _showMessage(error.toString());
+    }
+  }
+
   Future<void> _deletePost(CommunityPost post) async {
     final confirmed = await _confirm(
       title: 'حذف المنشور',
@@ -175,6 +215,9 @@ class _AdminCommunityPageState extends State<AdminCommunityPage> {
                       post: post,
                       onDelete: () => _deletePost(post),
                       onBan: () => _banUser(post),
+                      onLike: () => _react(post, 'like'),
+                      onDislike: () => _react(post, 'dislike'),
+                      onComment: (message) => _comment(post, message),
                       onDeleteComment: (comment) =>
                           _deleteComment(post, comment),
                     ),
@@ -188,21 +231,42 @@ class _AdminCommunityPageState extends State<AdminCommunityPage> {
   }
 }
 
-class _AdminCommunityPostCard extends StatelessWidget {
+class _AdminCommunityPostCard extends StatefulWidget {
   final CommunityPost post;
   final VoidCallback onDelete;
   final VoidCallback onBan;
+  final VoidCallback onLike;
+  final VoidCallback onDislike;
+  final ValueChanged<String> onComment;
   final ValueChanged<CommunityComment> onDeleteComment;
 
   const _AdminCommunityPostCard({
     required this.post,
     required this.onDelete,
     required this.onBan,
+    required this.onLike,
+    required this.onDislike,
+    required this.onComment,
     required this.onDeleteComment,
   });
 
   @override
+  State<_AdminCommunityPostCard> createState() =>
+      _AdminCommunityPostCardState();
+}
+
+class _AdminCommunityPostCardState extends State<_AdminCommunityPostCard> {
+  final _commentController = TextEditingController();
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final post = widget.post;
     final date = post.createdAt.isNotEmpty
         ? post.createdAt.split('T').first
         : '';
@@ -243,13 +307,13 @@ class _AdminCommunityPostCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: onBan,
+                    onPressed: widget.onBan,
                     icon: const Icon(Icons.block_rounded),
                     label: const Text('بان'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
-                    onPressed: onDelete,
+                    onPressed: widget.onDelete,
                     icon: const Icon(Icons.delete_rounded),
                     label: const Text('حذف'),
                   ),
@@ -264,6 +328,33 @@ class _AdminCommunityPostCard extends StatelessWidget {
             '${post.likesCount} Like | ${post.dislikesCount} Dislike | ${post.commentsCount} Comments | ${post.sharesCount} Shares',
             textAlign: TextAlign.right,
             style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                onPressed: widget.onLike,
+                icon: Icon(
+                  Icons.thumb_up_alt_rounded,
+                  color:
+                      post.userReaction == 'like' ? AppColors.orange : null,
+                ),
+                label: const Text('Like'),
+              ),
+              OutlinedButton.icon(
+                onPressed: widget.onDislike,
+                icon: Icon(
+                  Icons.thumb_down_alt_rounded,
+                  color: post.userReaction == 'dislike'
+                      ? AppColors.orange
+                      : null,
+                ),
+                label: const Text('Dislike'),
+              ),
+            ],
           ),
           if (post.comments.isNotEmpty) ...[
             const Divider(height: 22),
@@ -289,7 +380,7 @@ class _AdminCommunityPostCard extends StatelessWidget {
                         ),
                         IconButton(
                           tooltip: 'حذف التعليق',
-                          onPressed: () => onDeleteComment(comment),
+                          onPressed: () => widget.onDeleteComment(comment),
                           icon: const Icon(Icons.delete_outline_rounded),
                         ),
                       ],
@@ -301,6 +392,34 @@ class _AdminCommunityPostCard extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentController,
+                  textAlign: TextAlign.right,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    hintText: 'اكتب تعليق كأدمن',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                tooltip: 'إرسال تعليق',
+                onPressed: () {
+                  final text = _commentController.text;
+                  _commentController.clear();
+                  widget.onComment(text);
+                },
+                icon: const Icon(Icons.send_rounded),
+              ),
+            ],
+          ),
         ],
       ),
     );

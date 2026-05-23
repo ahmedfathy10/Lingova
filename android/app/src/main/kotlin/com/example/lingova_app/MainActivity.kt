@@ -4,12 +4,17 @@ import android.content.ContentValues
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.speech.tts.TextToSpeech
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.util.Locale
 
 class MainActivity : FlutterActivity() {
+    private var textToSpeech: TextToSpeech? = null
+    private var textToSpeechReady = false
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -34,6 +39,30 @@ class MainActivity : FlutterActivity() {
                     result.error("save_failed", error.message, null)
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "lingova/speech")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "speak") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+
+                val text = call.argument<String>("text") ?: ""
+                val language = call.argument<String>("language") ?: "en"
+                if (text.isBlank()) {
+                    result.error("missing_text", "No text was provided.", null)
+                    return@setMethodCallHandler
+                }
+
+                speakText(text, language, result)
+            }
+    }
+
+    override fun onDestroy() {
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+        super.onDestroy()
     }
 
     private fun savePdfToDownloads(fileName: String, bytes: ByteArray): String {
@@ -78,5 +107,41 @@ class MainActivity : FlutterActivity() {
         val file = File(folder, fileName)
         file.writeBytes(bytes)
         return file.absolutePath
+    }
+
+    private fun speakText(text: String, language: String, result: MethodChannel.Result) {
+        val engine = textToSpeech
+        if (engine != null && textToSpeechReady) {
+            engine.language = localeFor(language)
+            engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "lingova-vocabulary")
+            result.success(null)
+            return
+        }
+
+        textToSpeech = TextToSpeech(applicationContext) { status ->
+            if (status != TextToSpeech.SUCCESS) {
+                result.error("tts_unavailable", "Text to speech is unavailable.", null)
+                return@TextToSpeech
+            }
+
+            val initializedEngine = textToSpeech
+            if (initializedEngine == null) {
+                result.error("tts_unavailable", "Text to speech is unavailable.", null)
+                return@TextToSpeech
+            }
+
+            textToSpeechReady = true
+            initializedEngine.language = localeFor(language)
+            initializedEngine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "lingova-vocabulary")
+            result.success(null)
+        }
+    }
+
+    private fun localeFor(language: String): Locale {
+        return when (language.lowercase(Locale.ROOT)) {
+            "de", "de-de" -> Locale.GERMAN
+            "ar", "ar-eg" -> Locale("ar", "EG")
+            else -> Locale.ENGLISH
+        }
     }
 }

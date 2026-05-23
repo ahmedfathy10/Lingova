@@ -92,6 +92,36 @@ class CommunityApiService {
     return _readPostResponse(response);
   }
 
+  Future<CommunityPost> adminReact({
+    required String token,
+    required String postId,
+    required String reaction,
+  }) async {
+    final response = await postJson(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/api/admin/community/posts/$postId/reaction',
+      ),
+      {'reaction': reaction},
+      headers: _headers(token),
+    );
+    return _readPostResponse(response);
+  }
+
+  Future<CommunityPost> adminComment({
+    required String token,
+    required String postId,
+    required String message,
+  }) async {
+    final response = await postJson(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/api/admin/community/posts/$postId/comments',
+      ),
+      {'message': message},
+      headers: _headers(token),
+    );
+    return _readPostResponse(response, successStatus: 201);
+  }
+
   Future<void> deletePost({
     required String token,
     required String postId,

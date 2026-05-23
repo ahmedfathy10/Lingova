@@ -42,6 +42,32 @@ class _CommunityPageState extends State<CommunityPage> {
     setState(() => _postsFuture = _loadPosts());
   }
 
+  void _prependPost(CommunityPost post) {
+    setState(() {
+      _postsFuture = _postsFuture.then(
+        (posts) => [post, ...posts.where((item) => item.id != post.id)],
+        onError: (_) => [post],
+      );
+    });
+  }
+
+  void _replacePost(CommunityPost updatedPost) {
+    setState(() {
+      _postsFuture = _postsFuture.then((posts) {
+        var didReplace = false;
+        final updatedPosts = posts.map((post) {
+          if (post.id != updatedPost.id) {
+            return post;
+          }
+          didReplace = true;
+          return updatedPost;
+        }).toList();
+
+        return didReplace ? updatedPosts : [updatedPost, ...posts];
+      });
+    });
+  }
+
   Future<void> _sendPost() async {
     final message = _postController.text.trim();
     if (message.isEmpty || _isPosting) {
@@ -56,13 +82,13 @@ class _CommunityPageState extends State<CommunityPage> {
 
     setState(() => _isPosting = true);
     try {
-      await _communityService.createPost(
+      final createdPost = await _communityService.createPost(
         studentId: currentUser.id,
         authorName: currentUser.fullName,
         message: message,
       );
       _postController.clear();
-      _refreshPosts();
+      _prependPost(createdPost);
       _showMessage('تم نشر المنشور في المجتمع.');
     } on Exception catch (error) {
       _showMessage(error.toString());
@@ -80,12 +106,12 @@ class _CommunityPageState extends State<CommunityPage> {
       return;
     }
     try {
-      await _communityService.react(
+      final updatedPost = await _communityService.react(
         postId: post.id,
         studentId: user.id,
         reaction: reaction,
       );
-      _refreshPosts();
+      _replacePost(updatedPost);
     } on Exception catch (error) {
       _showMessage(error.toString());
     }
@@ -102,13 +128,13 @@ class _CommunityPageState extends State<CommunityPage> {
       return;
     }
     try {
-      await _communityService.comment(
+      final updatedPost = await _communityService.comment(
         postId: post.id,
         studentId: user.id,
         authorName: user.fullName,
         message: text,
       );
-      _refreshPosts();
+      _replacePost(updatedPost);
     } on Exception catch (error) {
       _showMessage(error.toString());
     }
@@ -124,8 +150,11 @@ class _CommunityPageState extends State<CommunityPage> {
       ClipboardData(text: '${post.authorName}\n${post.message}'),
     );
     try {
-      await _communityService.share(postId: post.id, studentId: user.id);
-      _refreshPosts();
+      final updatedPost = await _communityService.share(
+        postId: post.id,
+        studentId: user.id,
+      );
+      _replacePost(updatedPost);
     } catch (_) {}
     _showMessage('تم نسخ المنشور للمشاركة.');
   }
@@ -339,31 +368,52 @@ class _CommunityPostCardState extends State<_CommunityPostCard> {
             style: TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
           const Divider(height: 22),
-          Row(
-            children: [
-              _ActionButton(
-                icon: Icons.thumb_up_alt_rounded,
-                label: 'Like',
-                active: post.userReaction == 'like',
-                onTap: widget.onLike,
-              ),
-              _ActionButton(
-                icon: Icons.thumb_down_alt_rounded,
-                label: 'Dislike',
-                active: post.userReaction == 'dislike',
-                onTap: widget.onDislike,
-              ),
-              _ActionButton(
-                icon: Icons.mode_comment_rounded,
-                label: 'Comment',
-                onTap: () => setState(() => _showComments = !_showComments),
-              ),
-              _ActionButton(
-                icon: Icons.share_rounded,
-                label: 'Share',
-                onTap: widget.onShare,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final buttonWidth = constraints.maxWidth < 420
+                  ? constraints.maxWidth / 2
+                  : constraints.maxWidth / 4;
+
+              return Wrap(
+                children: [
+                  SizedBox(
+                    width: buttonWidth,
+                    child: _ActionButton(
+                      icon: Icons.thumb_up_alt_rounded,
+                      label: 'Like',
+                      active: post.userReaction == 'like',
+                      onTap: widget.onLike,
+                    ),
+                  ),
+                  SizedBox(
+                    width: buttonWidth,
+                    child: _ActionButton(
+                      icon: Icons.thumb_down_alt_rounded,
+                      label: 'Dislike',
+                      active: post.userReaction == 'dislike',
+                      onTap: widget.onDislike,
+                    ),
+                  ),
+                  SizedBox(
+                    width: buttonWidth,
+                    child: _ActionButton(
+                      icon: Icons.mode_comment_rounded,
+                      label: 'Comment',
+                      onTap: () =>
+                          setState(() => _showComments = !_showComments),
+                    ),
+                  ),
+                  SizedBox(
+                    width: buttonWidth,
+                    child: _ActionButton(
+                      icon: Icons.share_rounded,
+                      label: 'Share',
+                      onTap: widget.onShare,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           if (_showComments) ...[
             const SizedBox(height: 12),
@@ -434,16 +484,19 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = active ? AppColors.orange : AppColors.textMuted;
-    return Expanded(
-      child: TextButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18, color: color),
-        label: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: color, fontSize: 12),
-        ),
+    return TextButton.icon(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(0, 40),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
+      icon: Icon(icon, size: 18, color: color),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: color, fontSize: 12),
       ),
     );
   }

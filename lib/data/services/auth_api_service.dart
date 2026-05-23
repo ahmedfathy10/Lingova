@@ -15,6 +15,27 @@ class AuthApiException implements Exception {
   String toString() => message;
 }
 
+class AppStreak {
+  final int streak;
+  final int activeDaysCount;
+  final String today;
+
+  const AppStreak({
+    required this.streak,
+    required this.activeDaysCount,
+    required this.today,
+  });
+
+  factory AppStreak.fromJson(Map<String, dynamic> json) {
+    return AppStreak(
+      streak: int.tryParse(json['streak']?.toString() ?? '') ?? 0,
+      activeDaysCount:
+          int.tryParse(json['activeDaysCount']?.toString() ?? '') ?? 0,
+      today: json['today']?.toString() ?? '',
+    );
+  }
+}
+
 class AuthApiService {
   Future<AuthUser> register(RegisterRequest request) async {
     final response = await postJson(
@@ -82,6 +103,19 @@ class AuthApiService {
         });
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return;
+    }
+    throw AuthApiException(_readMessage(response.body));
+  }
+
+  Future<AppStreak> getAppStreak(String userId) async {
+    final response = await getJson(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/api/app/streak',
+      ).replace(queryParameters: {'userId': userId}),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode == 200) {
+      return AppStreak.fromJson(json);
     }
     throw AuthApiException(_readMessage(response.body));
   }

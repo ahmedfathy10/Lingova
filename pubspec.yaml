@@ -69,6 +69,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/certificate_template_blank.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
