@@ -11,9 +11,16 @@ try {
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
 const bundledDataDir = path.join(__dirname, 'data');
+const railwayDataDir =
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.RAILWAY_PROJECT_ID ||
+  process.env.RAILWAY_SERVICE_ID
+    ? '/data'
+    : '';
 const dataDir =
   process.env.LINGOVA_DATA_DIR ||
   process.env.RAILWAY_VOLUME_MOUNT_PATH ||
+  railwayDataDir ||
   bundledDataDir;
 const usersFile = path.join(dataDir, 'users.json');
 const coursesFile = path.join(dataDir, 'courses.json');
@@ -4589,5 +4596,11 @@ sendJson(response, 404, { message: 'Route not found.' });
 
 server.listen(port, host, () => {
   console.log(`Lingova backend is running on http://${host}:${port}`);
+  console.log(`Lingova data directory: ${dataDir}`);
+  if (dataDir === bundledDataDir) {
+    console.log(
+      'Warning: using bundled backend/data. Configure LINGOVA_DATA_DIR or a Railway volume to keep chats, exam results, certificates, and community messages after deploys.'
+    );
+  }
   console.log(`Admin login: ${adminEmail} / ${adminPassword}`);
 });
