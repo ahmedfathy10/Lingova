@@ -2974,16 +2974,95 @@ async function shareCommunityPost(request, response, postId) {
 }
 
 async function listAdminCommunityPosts(request, response) {
-  if (!requireAdmin(request, response)) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
     return;
   }
   try {
     const posts = await readCommunityPosts();
     sendJson(response, 200, {
-      posts: posts.map((post) => publicCommunityPostDetailed(post)),
+      posts: posts.map((post) =>
+        publicCommunityPostDetailed(post, adminCommunityId(adminSession))
+      ),
     });
   } catch {
     sendJson(response, 500, { message: 'تعذر تحميل منشورات المجتمع.' });
+  }
+}
+
+function adminCommunityId(adminSession) {
+  return `admin:${adminSession.email || adminSession.name || 'lingova'}`;
+}
+
+async function reactToAdminCommunityPost(request, response, postId) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const reaction = String(payload.reaction || '').trim();
+    if (!['like', 'dislike', 'none'].includes(reaction)) {
+      sendJson(response, 400, { message: 'بيانات التفاعل غير مكتملة.' });
+      return;
+    }
+
+    const posts = await readCommunityPosts();
+    const post = posts.find((item) => item.id === postId);
+    if (!post) {
+      sendJson(response, 404, { message: 'المنشور غير موجود.' });
+      return;
+    }
+
+    const adminId = adminCommunityId(adminSession);
+    post.reactions = post.reactions && typeof post.reactions === 'object'
+      ? post.reactions
+      : {};
+    if (reaction === 'none' || post.reactions[adminId] === reaction) {
+      delete post.reactions[adminId];
+    } else {
+      post.reactions[adminId] = reaction;
+    }
+    await writeCommunityPosts(posts);
+    sendJson(response, 200, { post: publicCommunityPostDetailed(post, adminId) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تسجيل التفاعل.' });
+  }
+}
+
+async function commentOnAdminCommunityPost(request, response, postId) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const messageText = String(payload.message || '').trim();
+    if (!messageText) {
+      sendJson(response, 400, { message: 'اكتب التعليق أولاً.' });
+      return;
+    }
+
+    const posts = await readCommunityPosts();
+    const post = posts.find((item) => item.id === postId);
+    if (!post) {
+      sendJson(response, 404, { message: 'المنشور غير موجود.' });
+      return;
+    }
+
+    const adminId = adminCommunityId(adminSession);
+    post.comments = Array.isArray(post.comments) ? post.comments : [];
+    post.comments.push({
+      id: crypto.randomUUID(),
+      studentId: adminId,
+      authorName: adminSession.name || 'Lingova Admin',
+      message: messageText,
+      createdAt: new Date().toISOString(),
+    });
+    await writeCommunityPosts(posts);
+    sendJson(response, 201, { post: publicCommunityPostDetailed(post, adminId) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إضافة التعليق.' });
   }
 }
 
@@ -3223,6 +3302,53 @@ async function recordAppActivity(request, response) {
     sendJson(response, 200, { status: 'ok' });
   } catch {
     sendJson(response, 500, { message: 'تعذر تسجيل النشاط.' });
+  }
+}
+
+async function getAppStreak(request, response, url) {
+  try {
+    const userId = String(url.searchParams.get('userId') || '').trim();
+    if (!userId) {
+      sendJson(response, 400, { message: 'Missing userId.' });
+      return;
+    }
+
+    const logs = await readActivityLogs();
+    const activeDays = new Set(
+      logs
+        .filter((log) => String(log.userId || '') === userId)
+        .map((log) => dateKey(log.createdAt))
+        .filter(Boolean)
+    );
+    const sessions = await readAppSessions();
+    for (const session of sessions) {
+      if (String(session.userId || '') !== userId) {
+        continue;
+      }
+      const openedDay = dateKey(session.openedAt);
+      const lastSeenDay = dateKey(session.lastSeenAt);
+      if (openedDay) {
+        activeDays.add(openedDay);
+      }
+      if (lastSeenDay) {
+        activeDays.add(lastSeenDay);
+      }
+    }
+
+    let streak = 0;
+    const cursor = new Date();
+    while (activeDays.has(dateKey(cursor))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    sendJson(response, 200, {
+      streak,
+      today: dateKey(new Date()),
+      activeDaysCount: activeDays.size,
+    });
+  } catch {
+    sendJson(response, 500, { message: 'Could not load app streak.' });
   }
 }
 
@@ -3808,6 +3934,11 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/app/streak') {
+    await getAppStreak(request, response, url);
+    return;
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/course-content') {
     await getStudentCourseContent(request, response, url);
     return;
@@ -4122,6 +4253,30 @@ const server = http.createServer(async (request, response) => {
   );
   if (adminCommunityDeleteMatch && request.method === 'POST') {
     await deleteAdminCommunityPost(request, response, adminCommunityDeleteMatch[1]);
+    return;
+  }
+
+  const adminCommunityReactionMatch = url.pathname.match(
+    /^\/api\/admin\/community\/posts\/([^/]+)\/reaction$/
+  );
+  if (adminCommunityReactionMatch && request.method === 'POST') {
+    await reactToAdminCommunityPost(
+      request,
+      response,
+      adminCommunityReactionMatch[1]
+    );
+    return;
+  }
+
+  const adminCommunityCommentMatch = url.pathname.match(
+    /^\/api\/admin\/community\/posts\/([^/]+)\/comments$/
+  );
+  if (adminCommunityCommentMatch && request.method === 'POST') {
+    await commentOnAdminCommunityPost(
+      request,
+      response,
+      adminCommunityCommentMatch[1]
+    );
     return;
   }
 
