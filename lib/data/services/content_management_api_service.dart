@@ -37,6 +37,22 @@ class ContentManagementApiService {
     throw AuthApiException(_readMessage(_readJson(response.body)));
   }
 
+  Future<int> createVocabularyWords(
+    String token,
+    List<VocabularyWord> words,
+  ) async {
+    final response = await postJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/vocabulary'),
+      {'words': words.map((word) => word.toJson()).toList()},
+      headers: _headers(token),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return (json['count'] as num?)?.toInt() ?? words.length;
+    }
+    throw AuthApiException(_readMessage(json));
+  }
+
   Future<void> deleteVocabularyWord(String token, String id) async {
     final response = await postJson(
       Uri.parse('${ApiConfig.baseUrl}/api/admin/vocabulary/$id/delete'),

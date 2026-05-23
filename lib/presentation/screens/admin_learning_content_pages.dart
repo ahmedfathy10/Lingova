@@ -1,4 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
+import 'dart:convert';
+
+import 'package:excel/excel.dart' as xlsx;
+import 'package:file_picker/file_picker.dart';
 
 import '../../core/app_colors.dart';
 import '../../data/models/admin_course_part.dart';
@@ -18,25 +23,51 @@ class AdminVocabularyPage extends StatefulWidget {
 
 class _AdminVocabularyPageState extends State<AdminVocabularyPage> {
   final _service = ContentManagementApiService();
+  final _adminService = AdminApiService();
   late Future<List<VocabularyWord>> _future;
+  late Future<List<AdminCoursePart>> _coursesFuture;
 
   @override
   void initState() {
     super.initState();
     _future = _service.getVocabulary(token: widget.session.token);
+    _coursesFuture = _adminService.getCourseParts(widget.session.token);
   }
 
   void _refresh() {
-    setState(() => _future = _service.getVocabulary(token: widget.session.token));
+    setState(
+      () => _future = _service.getVocabulary(token: widget.session.token),
+    );
   }
 
   Future<void> _add() async {
+    final parts = await _coursesFuture;
+    if (!mounted) return;
     final result = await showDialog<VocabularyWord>(
       context: context,
-      builder: (_) => const _VocabularyWordDialog(),
+      builder: (_) => _VocabularyWordDialog(parts: parts),
     );
     if (result == null) return;
     await _service.createVocabularyWord(widget.session.token, result);
+    _refresh();
+  }
+
+  Future<void> _bulkAdd() async {
+    final parts = await _coursesFuture;
+    if (!mounted) return;
+    final result = await showDialog<List<VocabularyWord>>(
+      context: context,
+      builder: (_) => _VocabularyBulkDialog(parts: parts),
+    );
+    if (result == null || result.isEmpty) return;
+    final count = await _service.createVocabularyWords(
+      widget.session.token,
+      result,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('تمت إضافة $count كلمة.')));
     _refresh();
   }
 
@@ -53,6 +84,11 @@ class _AdminVocabularyPageState extends State<AdminVocabularyPage> {
         appBar: AppBar(
           title: const Text('Vocabulary'),
           actions: [
+            IconButton(
+              onPressed: _bulkAdd,
+              tooltip: 'استيراد ملف',
+              icon: const Icon(Icons.upload_file_rounded),
+            ),
             IconButton(onPressed: _add, icon: const Icon(Icons.add_rounded)),
           ],
         ),
@@ -75,10 +111,18 @@ class _AdminVocabularyPageState extends State<AdminVocabularyPage> {
                   child: ListTile(
                     title: Text(word.word, textAlign: TextAlign.right),
                     subtitle: Text(
-                      '${word.meaning}\n${word.example}',
+                      [
+                        word.meaning,
+                        if (word.translation.isNotEmpty) word.translation,
+                        if (word.course.isNotEmpty ||
+                            word.level.isNotEmpty ||
+                            word.lesson.isNotEmpty)
+                          '${word.course} • ${word.level} • ${word.lesson}',
+                        if (word.example.isNotEmpty) word.example,
+                      ].join('\n'),
                       textAlign: TextAlign.right,
                     ),
-                    isThreeLine: word.example.isNotEmpty,
+                    isThreeLine: true,
                     trailing: IconButton(
                       onPressed: () => _delete(word),
                       icon: const Icon(Icons.delete_outline_rounded),
@@ -136,7 +180,10 @@ class _AdminAudioResourcesPageState extends State<AdminAudioResourcesPage> {
   }
 
   Future<void> _delete(AudioResource resource) async {
-    await _contentService.deleteAudioResource(widget.session.token, resource.id);
+    await _contentService.deleteAudioResource(
+      widget.session.token,
+      resource.id,
+    );
     _refresh();
   }
 
@@ -196,7 +243,9 @@ class _AdminAudioResourcesPageState extends State<AdminAudioResourcesPage> {
 }
 
 class _VocabularyWordDialog extends StatefulWidget {
-  const _VocabularyWordDialog();
+  final List<AdminCoursePart> parts;
+
+  const _VocabularyWordDialog({required this.parts});
 
   @override
   State<_VocabularyWordDialog> createState() => _VocabularyWordDialogState();
@@ -207,7 +256,32 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
   final _meaning = TextEditingController();
   final _pronunciation = TextEditingController();
   final _example = TextEditingController();
+  final _translation = TextEditingController();
+  final _lesson = TextEditingController();
   String _languageCode = 'en';
+  String? _courseKey;
+  String _level = '';
+
+  List<AdminCoursePart> get _courses {
+    final map = <String, AdminCoursePart>{};
+    for (final part in widget.parts) {
+      if (part.course.isEmpty || part.language.isEmpty) continue;
+      map['${part.language}|${part.course}'] = part;
+    }
+    return map.values.toList();
+  }
+
+  List<String> get _levels {
+    if (_courseKey == null) return const [];
+    final values = widget.parts
+        .where((part) => '${part.language}|${part.course}' == _courseKey)
+        .map((part) => part.level)
+        .where((level) => level.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort();
+    return values;
+  }
 
   @override
   void dispose() {
@@ -215,34 +289,95 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
     _meaning.dispose();
     _pronunciation.dispose();
     _example.dispose();
+    _translation.dispose();
+    _lesson.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final courses = _courses;
+    AdminCoursePart? selectedCourse;
+    for (final course in courses) {
+      if ('${course.language}|${course.course}' == _courseKey) {
+        selectedCourse = course;
+        break;
+      }
+    }
     return AlertDialog(
       title: const Text('إضافة كلمة'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _word, decoration: const InputDecoration(labelText: 'Word')),
-            TextField(controller: _meaning, decoration: const InputDecoration(labelText: 'Meaning')),
-            TextField(controller: _pronunciation, decoration: const InputDecoration(labelText: 'Pronunciation')),
-            TextField(controller: _example, decoration: const InputDecoration(labelText: 'Example')),
+            TextField(
+              controller: _word,
+              decoration: const InputDecoration(labelText: 'Word'),
+            ),
+            TextField(
+              controller: _meaning,
+              decoration: const InputDecoration(labelText: 'Meaning'),
+            ),
+            TextField(
+              controller: _translation,
+              decoration: const InputDecoration(labelText: 'Translation'),
+            ),
+            TextField(
+              controller: _pronunciation,
+              decoration: const InputDecoration(labelText: 'Pronunciation'),
+            ),
+            TextField(
+              controller: _example,
+              decoration: const InputDecoration(labelText: 'Example'),
+            ),
             DropdownButtonFormField<String>(
               initialValue: _languageCode,
               items: const [
                 DropdownMenuItem(value: 'en', child: Text('English')),
                 DropdownMenuItem(value: 'de', child: Text('German')),
               ],
-              onChanged: (value) => setState(() => _languageCode = value ?? 'en'),
+              onChanged: (value) =>
+                  setState(() => _languageCode = value ?? 'en'),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _courseKey,
+              decoration: const InputDecoration(labelText: 'الكورس'),
+              items: courses
+                  .map(
+                    (course) => DropdownMenuItem(
+                      value: '${course.language}|${course.course}',
+                      child: Text('${course.language} - ${course.course}'),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() {
+                _courseKey = value;
+                _level = '';
+              }),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _level.isEmpty ? null : _level,
+              decoration: const InputDecoration(labelText: 'الليفيل'),
+              items: _levels
+                  .map(
+                    (level) =>
+                        DropdownMenuItem(value: level, child: Text(level)),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _level = value ?? ''),
+            ),
+            TextField(
+              controller: _lesson,
+              decoration: const InputDecoration(labelText: 'الدرس'),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
         FilledButton(
           onPressed: () {
             Navigator.pop(
@@ -254,6 +389,11 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
                 pronunciation: _pronunciation.text.trim(),
                 example: _example.text.trim(),
                 languageCode: _languageCode,
+                course: selectedCourse?.course ?? '',
+                courseLanguage: selectedCourse?.language ?? '',
+                level: _level,
+                lesson: _lesson.text.trim(),
+                translation: _translation.text.trim(),
               ),
             );
           },
@@ -261,6 +401,301 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
         ),
       ],
     );
+  }
+}
+
+class _VocabularyBulkDialog extends StatefulWidget {
+  final List<AdminCoursePart> parts;
+
+  const _VocabularyBulkDialog({required this.parts});
+
+  @override
+  State<_VocabularyBulkDialog> createState() => _VocabularyBulkDialogState();
+}
+
+class _VocabularyBulkDialogState extends State<_VocabularyBulkDialog> {
+  final _lesson = TextEditingController();
+  String _languageCode = 'en';
+  String? _courseKey;
+  String _level = '';
+  String _fileName = '';
+  List<VocabularyWord> _words = const [];
+  String _error = '';
+
+  List<AdminCoursePart> get _courses {
+    final map = <String, AdminCoursePart>{};
+    for (final part in widget.parts) {
+      if (part.course.isEmpty || part.language.isEmpty) continue;
+      map['${part.language}|${part.course}'] = part;
+    }
+    return map.values.toList();
+  }
+
+  List<String> get _levels {
+    if (_courseKey == null) return const [];
+    final values = widget.parts
+        .where((part) => '${part.language}|${part.course}' == _courseKey)
+        .map((part) => part.level)
+        .where((level) => level.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort();
+    return values;
+  }
+
+  @override
+  void dispose() {
+    _lesson.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['xlsx', 'csv', 'tsv', 'txt'],
+      withData: true,
+    );
+    final file = result?.files.single;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null) return;
+
+    try {
+      final parsedRows = file.extension?.toLowerCase() == 'xlsx'
+          ? _readXlsxRows(bytes)
+          : _readTextRows(
+              utf8.decode(bytes, allowMalformed: true),
+              file.extension ?? '',
+            );
+      final words = _buildWords(parsedRows);
+      setState(() {
+        _fileName = file.name;
+        _words = words;
+        _error = words.isEmpty ? 'لم يتم العثور على كلمات صالحة.' : '';
+      });
+    } catch (_) {
+      setState(() {
+        _fileName = file.name;
+        _words = const [];
+        _error = 'تعذر قراءة الملف. استخدم XLSX أو CSV بالأعمدة المطلوبة.';
+      });
+    }
+  }
+
+  List<List<String>> _readXlsxRows(List<int> bytes) {
+    final excel = xlsx.Excel.decodeBytes(bytes);
+    if (excel.tables.isEmpty) return const [];
+    final sheet = excel.tables.values.first;
+    return sheet.rows
+        .map((row) => row.map((cell) => _cellText(cell?.value)).toList())
+        .toList();
+  }
+
+  String _cellText(xlsx.CellValue? value) {
+    if (value == null) return '';
+    if (value is xlsx.TextCellValue) return value.value.text ?? '';
+    return value.toString();
+  }
+
+  List<List<String>> _readTextRows(String content, String extension) {
+    final delimiter = extension.toLowerCase() == 'tsv' ? '\t' : ',';
+    return const LineSplitter()
+        .convert(content)
+        .where((line) => line.trim().isNotEmpty)
+        .map((line) => _parseDelimitedLine(line, delimiter))
+        .toList();
+  }
+
+  List<String> _parseDelimitedLine(String line, String delimiter) {
+    final cells = <String>[];
+    final buffer = StringBuffer();
+    var quoted = false;
+    for (var i = 0; i < line.length; i++) {
+      final char = line[i];
+      if (char == '"') {
+        if (quoted && i + 1 < line.length && line[i + 1] == '"') {
+          buffer.write('"');
+          i++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (char == delimiter && !quoted) {
+        cells.add(buffer.toString().trim());
+        buffer.clear();
+      } else {
+        buffer.write(char);
+      }
+    }
+    cells.add(buffer.toString().trim());
+    return cells;
+  }
+
+  List<VocabularyWord> _buildWords(List<List<String>> rows) {
+    final courses = _courses;
+    AdminCoursePart? selectedCourse;
+    for (final course in courses) {
+      if ('${course.language}|${course.course}' == _courseKey) {
+        selectedCourse = course;
+        break;
+      }
+    }
+
+    final dataRows = rows
+        .where((row) => row.any((cell) => cell.trim().isNotEmpty))
+        .toList();
+    if (dataRows.isEmpty) return const [];
+
+    final startIndex = _looksLikeHeader(dataRows.first) ? 1 : 0;
+    return dataRows
+        .skip(startIndex)
+        .map((row) {
+          String cell(int index) => index < row.length ? row[index].trim() : '';
+          return VocabularyWord(
+            id: '',
+            word: cell(0),
+            meaning: cell(1),
+            translation: cell(2),
+            example: cell(3),
+            pronunciation: cell(4),
+            languageCode: _languageCode,
+            course: selectedCourse?.course ?? '',
+            courseLanguage: selectedCourse?.language ?? '',
+            level: _level,
+            lesson: _lesson.text.trim(),
+          );
+        })
+        .where((word) => word.word.isNotEmpty && word.meaning.isNotEmpty)
+        .toList();
+  }
+
+  bool _looksLikeHeader(List<String> row) {
+    final values = row.map((cell) => cell.trim().toLowerCase()).toList();
+    return values.contains('word') ||
+        values.contains('meaning') ||
+        values.contains('translation') ||
+        values.contains('example');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final courses = _courses;
+    return AlertDialog(
+      title: const Text('استيراد كلمات Bulk'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _languageCode,
+                decoration: const InputDecoration(labelText: 'لغة الكلمات'),
+                items: const [
+                  DropdownMenuItem(value: 'en', child: Text('English')),
+                  DropdownMenuItem(value: 'de', child: Text('German')),
+                ],
+                onChanged: (value) => setState(() {
+                  _languageCode = value ?? 'en';
+                  if (_fileName.isNotEmpty) {
+                    _words = _buildWords(_wordsToRows(_words));
+                  }
+                }),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: _courseKey,
+                decoration: const InputDecoration(labelText: 'الكورس'),
+                items: courses
+                    .map(
+                      (course) => DropdownMenuItem(
+                        value: '${course.language}|${course.course}',
+                        child: Text('${course.language} - ${course.course}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _courseKey = value;
+                  _level = '';
+                  if (_fileName.isNotEmpty) {
+                    _words = _buildWords(_wordsToRows(_words));
+                  }
+                }),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: _level.isEmpty ? null : _level,
+                decoration: const InputDecoration(labelText: 'الليفيل'),
+                items: _levels
+                    .map(
+                      (level) =>
+                          DropdownMenuItem(value: level, child: Text(level)),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _level = value ?? '';
+                  if (_fileName.isNotEmpty) {
+                    _words = _buildWords(_wordsToRows(_words));
+                  }
+                }),
+              ),
+              TextField(
+                controller: _lesson,
+                decoration: const InputDecoration(labelText: 'الدرس'),
+                onChanged: (_) {
+                  if (_fileName.isNotEmpty) {
+                    setState(() => _words = _buildWords(_wordsToRows(_words)));
+                  }
+                },
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: _pickFile,
+                icon: const Icon(Icons.upload_file_rounded),
+                label: Text(
+                  _fileName.isEmpty ? 'اختيار ملف XLSX / CSV' : _fileName,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'ترتيب الأعمدة: word, meaning, translation, example, pronunciation',
+                textAlign: TextAlign.center,
+              ),
+              if (_error.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(_error, style: const TextStyle(color: Colors.red)),
+              ],
+              if (_words.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('جاهز لإضافة ${_words.length} كلمة'),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: _words.isEmpty
+              ? null
+              : () => Navigator.pop(context, _words),
+          child: const Text('استيراد'),
+        ),
+      ],
+    );
+  }
+
+  List<List<String>> _wordsToRows(List<VocabularyWord> words) {
+    return words
+        .map(
+          (word) => [
+            word.word,
+            word.meaning,
+            word.translation,
+            word.example,
+            word.pronunciation,
+          ],
+        )
+        .toList();
   }
 }
 
@@ -349,16 +784,24 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: _title, decoration: const InputDecoration(labelText: 'العنوان')),
-              TextField(controller: _description, decoration: const InputDecoration(labelText: 'الوصف')),
+              TextField(
+                controller: _title,
+                decoration: const InputDecoration(labelText: 'العنوان'),
+              ),
+              TextField(
+                controller: _description,
+                decoration: const InputDecoration(labelText: 'الوصف'),
+              ),
               DropdownButtonFormField<String>(
                 initialValue: _courseKey,
                 decoration: const InputDecoration(labelText: 'الكورس'),
                 items: courses
-                    .map((course) => DropdownMenuItem(
-                          value: '${course.language}|${course.course}',
-                          child: Text('${course.language} - ${course.course}'),
-                        ))
+                    .map(
+                      (course) => DropdownMenuItem(
+                        value: '${course.language}|${course.course}',
+                        child: Text('${course.language} - ${course.course}'),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) => setState(() {
                   _courseKey = value;
@@ -369,7 +812,10 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                 initialValue: _level.isEmpty ? null : _level,
                 decoration: const InputDecoration(labelText: 'الليفيل'),
                 items: _levels
-                    .map((level) => DropdownMenuItem(value: level, child: Text(level)))
+                    .map(
+                      (level) =>
+                          DropdownMenuItem(value: level, child: Text(level)),
+                    )
                     .toList(),
                 onChanged: (value) => setState(() => _level = value ?? ''),
               ),
@@ -378,9 +824,13 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                 decoration: const InputDecoration(labelText: 'الإتاحة'),
                 items: const [
                   DropdownMenuItem(value: 'free', child: Text('مجاني')),
-                  DropdownMenuItem(value: 'paid', child: Text('مع شراء الكورس')),
+                  DropdownMenuItem(
+                    value: 'paid',
+                    child: Text('مع شراء الكورس'),
+                  ),
                 ],
-                onChanged: (value) => setState(() => _accessType = value ?? 'free'),
+                onChanged: (value) =>
+                    setState(() => _accessType = value ?? 'free'),
               ),
               DropdownButtonFormField<String>(
                 initialValue: _fileType,
@@ -391,7 +841,8 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                   DropdownMenuItem(value: 'pdf', child: Text('PDF')),
                   DropdownMenuItem(value: 'link', child: Text('Link')),
                 ],
-                onChanged: (value) => setState(() => _fileType = value ?? 'audio'),
+                onChanged: (value) =>
+                    setState(() => _fileType = value ?? 'audio'),
               ),
               DropdownButtonFormField<String>(
                 initialValue: _linkType,
@@ -400,9 +851,15 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                   DropdownMenuItem(value: 'clip', child: Text('مقطع')),
                   DropdownMenuItem(value: 'folder', child: Text('فولدر')),
                 ],
-                onChanged: (value) => setState(() => _linkType = value ?? 'clip'),
+                onChanged: (value) =>
+                    setState(() => _linkType = value ?? 'clip'),
               ),
-              TextField(controller: _url, decoration: const InputDecoration(labelText: 'رابط المقطع أو الفولدر')),
+              TextField(
+                controller: _url,
+                decoration: const InputDecoration(
+                  labelText: 'رابط المقطع أو الفولدر',
+                ),
+              ),
               if (_linkType == 'folder')
                 TextField(
                   controller: _items,
@@ -418,7 +875,10 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
         FilledButton(
           onPressed: () {
             Navigator.pop(
@@ -444,4 +904,3 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
     );
   }
 }
-

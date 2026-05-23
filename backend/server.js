@@ -762,6 +762,11 @@ function publicVocabularyWord(word) {
     pronunciation: word.pronunciation || '',
     example: word.example || '',
     languageCode: word.languageCode || 'en',
+    course: word.course || '',
+    courseLanguage: word.courseLanguage || '',
+    level: word.level || '',
+    lesson: word.lesson || '',
+    translation: word.translation || '',
     createdAt: word.createdAt || '',
     createdBy: word.createdBy || 'Admin',
   };
@@ -3315,27 +3320,46 @@ async function createVocabularyWord(request, response) {
   }
   try {
     const payload = JSON.parse((await readBody(request)) || '{}');
-    const word = String(payload.word || '').trim();
-    const meaning = String(payload.meaning || '').trim();
-    if (!word || !meaning) {
+    const incomingWords = Array.isArray(payload.words) ? payload.words : [payload];
+    const now = new Date().toISOString();
+    const items = incomingWords
+      .map((entry) => {
+        const word = String(entry.word || '').trim();
+        const meaning = String(entry.meaning || '').trim();
+        if (!word || !meaning) {
+          return null;
+        }
+        return {
+          id: crypto.randomUUID(),
+          word,
+          meaning,
+          pronunciation: String(entry.pronunciation || '').trim(),
+          example: String(entry.example || '').trim(),
+          languageCode: String(entry.languageCode || 'en').trim() || 'en',
+          course: String(entry.course || '').trim(),
+          courseLanguage: String(entry.courseLanguage || '').trim(),
+          level: String(entry.level || '').trim(),
+          lesson: String(entry.lesson || '').trim(),
+          translation: String(entry.translation || '').trim(),
+          createdAt: now,
+          createdBy: adminSession.name || 'Admin',
+        };
+      })
+      .filter(Boolean);
+
+    if (items.length === 0) {
       sendJson(response, 400, { message: 'اكتب الكلمة والمعنى.' });
       return;
     }
 
     const words = await readVocabularyWords();
-    const item = {
-      id: crypto.randomUUID(),
-      word,
-      meaning,
-      pronunciation: String(payload.pronunciation || '').trim(),
-      example: String(payload.example || '').trim(),
-      languageCode: String(payload.languageCode || 'en').trim() || 'en',
-      createdAt: new Date().toISOString(),
-      createdBy: adminSession.name || 'Admin',
-    };
-    words.unshift(item);
+    words.unshift(...items);
     await writeVocabularyWords(words);
-    sendJson(response, 201, { word: publicVocabularyWord(item) });
+    sendJson(response, 201, {
+      word: publicVocabularyWord(items[0]),
+      words: items.map(publicVocabularyWord),
+      count: items.length,
+    });
   } catch {
     sendJson(response, 500, { message: 'تعذر إضافة الكلمة.' });
   }

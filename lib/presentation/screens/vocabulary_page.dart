@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -86,16 +86,18 @@ class _VocabularyPageState extends State<VocabularyPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message, textAlign: TextAlign.right)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message, textAlign: TextAlign.right)),
+    );
   }
 
   List<VocabularyWord> _dailyWords(List<VocabularyWord> words) {
     final now = DateTime.now();
-    final daySeed = DateTime(now.year, now.month, now.day)
-        .difference(DateTime(now.year))
-        .inDays;
+    final daySeed = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).difference(DateTime(now.year)).inDays;
     return List.generate(5, (index) {
       return words[(daySeed + index * 3) % words.length];
     });
@@ -463,8 +465,23 @@ class VocabularyWordCard extends StatelessWidget {
               Text(
                 word.meaning,
                 textAlign: TextAlign.right,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
+              if (word.translation.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  word.translation,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: AppColors.orange,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Container(
                 width: double.infinity,
@@ -574,8 +591,9 @@ class _FlashcardReview extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     showAnswer ? word.example : word.pronunciation,
-                    textDirection:
-                        showAnswer ? TextDirection.ltr : TextDirection.rtl,
+                    textDirection: showAnswer
+                        ? TextDirection.ltr
+                        : TextDirection.rtl,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.textMuted,
@@ -797,4 +815,3 @@ const _vocabulary = <VocabularyWord>[
     languageCode: 'de',
   ),
 ];
-
