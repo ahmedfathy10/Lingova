@@ -483,7 +483,6 @@ class _AudioResourceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = resource.isFolder ? Icons.folder_rounded : Icons.music_note;
     final subtitle = [
       resource.fileType,
       resource.isPaid ? 'مع شراء الكورس' : 'مجاني',
@@ -494,35 +493,21 @@ class _AudioResourceTile extends StatelessWidget {
       padding: const EdgeInsets.only(top: 8),
       child: Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.border),
             ),
             child: Column(
               children: [
                 Row(
+                  textDirection: TextDirection.rtl,
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: locked
-                            ? AppColors.surfaceHigh
-                            : AppColors.orange.withValues(alpha: .14),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        locked ? Icons.lock_rounded : icon,
-                        color: locked ? AppColors.textMuted : AppColors.orange,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -530,7 +515,7 @@ class _AudioResourceTile extends StatelessWidget {
                           Text(
                             resource.title,
                             textAlign: TextAlign.right,
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 15.5,
@@ -552,10 +537,11 @@ class _AudioResourceTile extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     IconButton.filled(
                       onPressed: onTap,
                       style: IconButton.styleFrom(
+                        fixedSize: const Size(42, 42),
                         backgroundColor: locked
                             ? AppColors.surfaceHigh
                             : AppColors.orange,
@@ -568,7 +554,7 @@ class _AudioResourceTile extends StatelessWidget {
                             : resource.isFolder
                                 ? Icons.arrow_back_ios_new_rounded
                                 : isPlaying
-                                    ? Icons.pause_rounded
+                                    ? Icons.stop_rounded
                                     : Icons.play_arrow_rounded,
                       ),
                     ),
@@ -579,7 +565,7 @@ class _AudioResourceTile extends StatelessWidget {
                   child: isPlaying && activeAudio != null
                       ? Padding(
                           key: ValueKey(activeAudio!.url),
-                          padding: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.only(top: 8),
                           child: _EmbeddedAudioPanel(audio: activeAudio!),
                         )
                       : const SizedBox.shrink(),
@@ -690,33 +676,21 @@ class _FolderAudioTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
             children: [
               Row(
+                textDirection: TextDirection.rtl,
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.orange.withValues(alpha: .14),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.music_note,
-                      color: AppColors.orange,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -724,7 +698,7 @@ class _FolderAudioTile extends StatelessWidget {
                         Text(
                           item.title,
                           textAlign: TextAlign.right,
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 15.5,
@@ -744,15 +718,16 @@ class _FolderAudioTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   IconButton.filled(
                     onPressed: onTap,
                     style: IconButton.styleFrom(
+                      fixedSize: const Size(42, 42),
                       backgroundColor: AppColors.orange,
                       foregroundColor: Colors.white,
                     ),
                     icon: Icon(
-                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
                     ),
                   ),
                 ],
@@ -762,7 +737,7 @@ class _FolderAudioTile extends StatelessWidget {
                 child: isPlaying && activeAudio != null
                     ? Padding(
                         key: ValueKey(activeAudio!.url),
-                        padding: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.only(top: 8),
                         child: _EmbeddedAudioPanel(audio: activeAudio!),
                       )
                     : const SizedBox.shrink(),
@@ -785,7 +760,7 @@ class _EmbeddedAudioPanel extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
-        height: 190,
+        height: 86,
         child: AudioEmbedWidget(html: _playerHtml(audio)),
       ),
     );
@@ -794,17 +769,7 @@ class _EmbeddedAudioPanel extends StatelessWidget {
 
 String _playerHtml(_InlineAudioData audio) {
   final source = _embedUrl(audio.url);
-  final isDirectAudio = _looksLikeDirectAudio(source);
-  final title = _escape(audio.title);
-  final subtitle = _escape(audio.subtitle);
   final safeSource = _escape(source);
-  final body = isDirectAudio
-      ? '''
-        <audio controls autoplay controlsList="nodownload" src="$safeSource"></audio>
-      '''
-      : '''
-        <iframe src="$safeSource" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-      ''';
 
   return '''
 <!DOCTYPE html>
@@ -822,61 +787,21 @@ String _playerHtml(_InlineAudioData audio) {
   .wrap {
     height: 100%;
     box-sizing: border-box;
-    padding: 14px;
+    padding: 10px 12px;
     display: flex;
-    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    gap: 10px;
     background: linear-gradient(145deg, #141922, #0b0d12 70%);
   }
-  .badge {
-    display: inline-block;
-    width: fit-content;
-    padding: 7px 10px;
-    border-radius: 999px;
-    background: rgba(255,122,0,.15);
-    color: #ffb15d;
-    font-size: 11px;
-    font-weight: 700;
-  }
-  h1 {
-    margin: 0;
-    font-size: 17px;
-    line-height: 1.25;
-  }
-  p {
-    margin: 0;
-    color: rgba(255,255,255,.68);
-    font-size: 12px;
-  }
-  .player {
-    width: 100%;
-    min-height: 92px;
-    border: 1px solid rgba(255,255,255,.12);
-    border-radius: 16px;
-    overflow: hidden;
-    background: rgba(255,255,255,.06);
-  }
-  iframe {
-    width: 100%;
-    height: 118px;
-    border: 0;
-    display: block;
-    background: #111;
-  }
   audio {
-    width: calc(100% - 32px);
-    margin: 32px 16px;
+    width: 100%;
     accent-color: #ff7a00;
   }
 </style>
 </head>
 <body>
   <main class="wrap">
-    <span class="badge">${_escape(audio.fileType)}</span>
-    <h1>$title</h1>
-    <p>$subtitle</p>
-    <section class="player">$body</section>
+    <audio controls autoplay controlsList="nodownload" src="$safeSource"></audio>
   </main>
 </body>
 </html>
@@ -885,28 +810,23 @@ String _playerHtml(_InlineAudioData audio) {
 
 String _embedUrl(String value) {
   final url = value.trim();
-  final fileMatch = RegExp(r'drive\.google\.com/file/d/([^/]+)').firstMatch(url);
+  final fileMatch = RegExp(
+    r'drive\.google\.com/file/d/([^/?]+)',
+  ).firstMatch(url);
   if (fileMatch != null) {
-    return 'https://drive.google.com/file/d/${fileMatch.group(1)}/preview';
+    return 'https://drive.google.com/uc?export=download&id=${fileMatch.group(1)}';
   }
-  final openMatch = RegExp(r'drive\.google\.com/open\?id=([^&]+)').firstMatch(url);
+  final openMatch = RegExp(
+    r'drive\.google\.com/(?:open|uc)\?(?:[^#]*&)?id=([^&#]+)',
+  ).firstMatch(url);
   if (openMatch != null) {
-    return 'https://drive.google.com/file/d/${openMatch.group(1)}/preview';
+    return 'https://drive.google.com/uc?export=download&id=${openMatch.group(1)}';
   }
   final folderMatch = RegExp(r'drive\.google\.com/drive/folders/([^/?]+)').firstMatch(url);
   if (folderMatch != null) {
     return 'https://drive.google.com/embeddedfolderview?id=${folderMatch.group(1)}#list';
   }
   return url;
-}
-
-bool _looksLikeDirectAudio(String value) {
-  final path = Uri.tryParse(value)?.path.toLowerCase() ?? value.toLowerCase();
-  return path.endsWith('.mp3') ||
-      path.endsWith('.m4a') ||
-      path.endsWith('.wav') ||
-      path.endsWith('.ogg') ||
-      path.endsWith('.aac');
 }
 
 String _escape(String value) {
