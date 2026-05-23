@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_colors.dart';
+import '../../data/models/vocabulary_word.dart';
+import '../../data/services/content_management_api_service.dart';
 
 class VocabularyPage extends StatefulWidget {
   const VocabularyPage({super.key});
@@ -13,6 +15,7 @@ class VocabularyPage extends StatefulWidget {
 
 class _VocabularyPageState extends State<VocabularyPage> {
   static const _favoritesKey = 'favorite_vocabulary_words';
+  final _contentService = ContentManagementApiService();
   final _speechChannel = const MethodChannel('lingova/speech');
   final _searchController = TextEditingController();
   final Set<String> _favoriteIds = {};
@@ -20,10 +23,12 @@ class _VocabularyPageState extends State<VocabularyPage> {
   int _flashcardIndex = 0;
   bool _showFlashcardAnswer = false;
   String _query = '';
+  late Future<List<VocabularyWord>> _wordsFuture;
 
   @override
   void initState() {
     super.initState();
+    _wordsFuture = _loadWords();
     _loadFavorites();
     _searchController.addListener(() {
       setState(() => _query = _searchController.text.trim().toLowerCase());
@@ -46,7 +51,16 @@ class _VocabularyPageState extends State<VocabularyPage> {
     });
   }
 
-  Future<void> _toggleFavorite(_VocabularyWord word) async {
+  Future<List<VocabularyWord>> _loadWords() async {
+    try {
+      final words = await _contentService.getVocabulary();
+      return words.isEmpty ? _vocabulary : words;
+    } catch (_) {
+      return _vocabulary;
+    }
+  }
+
+  Future<void> _toggleFavorite(VocabularyWord word) async {
     setState(() {
       if (_favoriteIds.contains(word.id)) {
         _favoriteIds.remove(word.id);
@@ -58,7 +72,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
     await prefs.setStringList(_favoritesKey, _favoriteIds.toList()..sort());
   }
 
-  Future<void> _speak(_VocabularyWord word) async {
+  Future<void> _speak(VocabularyWord word) async {
     try {
       await _speechChannel.invokeMethod<void>('speak', {
         'text': word.word,
@@ -77,21 +91,22 @@ class _VocabularyPageState extends State<VocabularyPage> {
     ).showSnackBar(SnackBar(content: Text(message, textAlign: TextAlign.right)));
   }
 
-  List<_VocabularyWord> get _dailyWords {
+  List<VocabularyWord> _dailyWords(List<VocabularyWord> words) {
     final now = DateTime.now();
     final daySeed = DateTime(now.year, now.month, now.day)
         .difference(DateTime(now.year))
         .inDays;
     return List.generate(5, (index) {
-      return _vocabulary[(daySeed + index * 3) % _vocabulary.length];
+      return words[(daySeed + index * 3) % words.length];
     });
   }
 
-  List<_VocabularyWord> get _visibleWords {
+  List<VocabularyWord> _visibleWords(List<VocabularyWord> words) {
+    final dailyWords = _dailyWords(words);
     final source = switch (_selectedView) {
-      0 => _dailyWords,
-      1 => _vocabulary.where((word) => _favoriteIds.contains(word.id)).toList(),
-      _ => _vocabulary,
+      0 => dailyWords,
+      1 => words.where((word) => _favoriteIds.contains(word.id)).toList(),
+      _ => words,
     };
 
     if (_query.isEmpty) {
@@ -106,116 +121,126 @@ class _VocabularyPageState extends State<VocabularyPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleWords = _visibleWords;
-    final flashcards = _favoriteIds.isEmpty
-        ? _dailyWords
-        : _vocabulary.where((word) => _favoriteIds.contains(word.id)).toList();
-    if (_flashcardIndex >= flashcards.length) {
-      _flashcardIndex = 0;
-    }
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.all(22),
-            children: [
-              Row(
+          child: FutureBuilder<List<VocabularyWord>>(
+            future: _wordsFuture,
+            builder: (context, snapshot) {
+              final words = snapshot.data ?? _vocabulary;
+              final visibleWords = _visibleWords(words);
+              final dailyWords = _dailyWords(words);
+              final flashcards = _favoriteIds.isEmpty
+                  ? dailyWords
+                  : words
+                        .where((word) => _favoriteIds.contains(word.id))
+                        .toList();
+              if (_flashcardIndex >= flashcards.length) {
+                _flashcardIndex = 0;
+              }
+              return ListView(
+                padding: const EdgeInsets.all(22),
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    icon: const Icon(Icons.arrow_forward_rounded),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                      ),
+                      const SizedBox(width: 4),
+                      const Expanded(
+                        child: Text(
+                          'Vocabulary',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  const Expanded(
-                    child: Text(
-                      'Vocabulary',
+                  const SizedBox(height: 6),
+                  Text(
+                    'كلمات يومية مع النطق والمراجعة بالكروت.',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 18),
+                  _VocabularyHero(
+                    dailyCount: dailyWords.length,
+                    favoritesCount: _favoriteIds.length,
+                  ),
+                  const SizedBox(height: 18),
+                  _ViewSwitcher(
+                    selectedIndex: _selectedView,
+                    onChanged: (index) {
+                      setState(() {
+                        _selectedView = index;
+                        _showFlashcardAnswer = false;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  if (_selectedView == 2)
+                    _FlashcardReview(
+                      word: flashcards[_flashcardIndex],
+                      current: _flashcardIndex + 1,
+                      total: flashcards.length,
+                      isFavorite: _favoriteIds.contains(
+                        flashcards[_flashcardIndex].id,
+                      ),
+                      showAnswer: _showFlashcardAnswer,
+                      onFlip: () => setState(
+                        () => _showFlashcardAnswer = !_showFlashcardAnswer,
+                      ),
+                      onNext: () => setState(() {
+                        _flashcardIndex =
+                            (_flashcardIndex + 1) % flashcards.length;
+                        _showFlashcardAnswer = false;
+                      }),
+                      onPrevious: () => setState(() {
+                        _flashcardIndex =
+                            (_flashcardIndex - 1 + flashcards.length) %
+                            flashcards.length;
+                        _showFlashcardAnswer = false;
+                      }),
+                      onFavorite: () =>
+                          _toggleFavorite(flashcards[_flashcardIndex]),
+                      onSpeak: () => _speak(flashcards[_flashcardIndex]),
+                    )
+                  else ...[
+                    TextField(
+                      controller: _searchController,
                       textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                      decoration: InputDecoration(
+                        hintText: 'ابحث عن كلمة أو معنى',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: _searchController.clear,
+                                icon: const Icon(Icons.close_rounded),
+                              ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                    if (visibleWords.isEmpty)
+                      _EmptyVocabularyState(isFavorites: _selectedView == 1)
+                    else
+                      ...visibleWords.map(
+                        (word) => VocabularyWordCard(
+                          word: word,
+                          isFavorite: _favoriteIds.contains(word.id),
+                          onFavorite: () => _toggleFavorite(word),
+                          onSpeak: () => _speak(word),
+                        ),
+                      ),
+                  ],
                 ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'كلمات يومية مع النطق والمراجعة بالكروت.',
-                textAlign: TextAlign.right,
-                style: TextStyle(color: AppColors.textMuted),
-              ),
-              const SizedBox(height: 18),
-              _VocabularyHero(
-                dailyCount: _dailyWords.length,
-                favoritesCount: _favoriteIds.length,
-              ),
-              const SizedBox(height: 18),
-              _ViewSwitcher(
-                selectedIndex: _selectedView,
-                onChanged: (index) {
-                  setState(() {
-                    _selectedView = index;
-                    _showFlashcardAnswer = false;
-                  });
-                },
-              ),
-              const SizedBox(height: 14),
-              if (_selectedView == 2)
-                _FlashcardReview(
-                  word: flashcards[_flashcardIndex],
-                  current: _flashcardIndex + 1,
-                  total: flashcards.length,
-                  isFavorite: _favoriteIds.contains(
-                    flashcards[_flashcardIndex].id,
-                  ),
-                  showAnswer: _showFlashcardAnswer,
-                  onFlip: () => setState(
-                    () => _showFlashcardAnswer = !_showFlashcardAnswer,
-                  ),
-                  onNext: () => setState(() {
-                    _flashcardIndex = (_flashcardIndex + 1) % flashcards.length;
-                    _showFlashcardAnswer = false;
-                  }),
-                  onPrevious: () => setState(() {
-                    _flashcardIndex =
-                        (_flashcardIndex - 1 + flashcards.length) %
-                        flashcards.length;
-                    _showFlashcardAnswer = false;
-                  }),
-                  onFavorite: () => _toggleFavorite(flashcards[_flashcardIndex]),
-                  onSpeak: () => _speak(flashcards[_flashcardIndex]),
-                )
-              else ...[
-                TextField(
-                  controller: _searchController,
-                  textAlign: TextAlign.right,
-                  decoration: InputDecoration(
-                    hintText: 'ابحث عن كلمة أو معنى',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: _query.isEmpty
-                        ? null
-                        : IconButton(
-                            onPressed: _searchController.clear,
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (visibleWords.isEmpty)
-                  _EmptyVocabularyState(isFavorites: _selectedView == 1)
-                else
-                  ...visibleWords.map(
-                    (word) => _VocabularyWordCard(
-                      word: word,
-                      isFavorite: _favoriteIds.contains(word.id),
-                      onFavorite: () => _toggleFavorite(word),
-                      onSpeak: () => _speak(word),
-                    ),
-                  ),
-              ],
-            ],
+              );
+            },
           ),
         ),
       ),
@@ -362,13 +387,14 @@ class _ViewSwitcher extends StatelessWidget {
   }
 }
 
-class _VocabularyWordCard extends StatelessWidget {
-  final _VocabularyWord word;
+class VocabularyWordCard extends StatelessWidget {
+  final VocabularyWord word;
   final bool isFavorite;
   final VoidCallback onFavorite;
   final VoidCallback onSpeak;
 
-  const _VocabularyWordCard({
+  const VocabularyWordCard({
+    super.key,
     required this.word,
     required this.isFavorite,
     required this.onFavorite,
@@ -467,7 +493,7 @@ class _VocabularyWordCard extends StatelessWidget {
 }
 
 class _FlashcardReview extends StatelessWidget {
-  final _VocabularyWord word;
+  final VocabularyWord word;
   final int current;
   final int total;
   final bool isFavorite;
@@ -648,131 +674,113 @@ class _EmptyVocabularyState extends StatelessWidget {
   }
 }
 
-class _VocabularyWord {
-  final String id;
-  final String word;
-  final String meaning;
-  final String pronunciation;
-  final String example;
-  final String languageCode;
-
-  const _VocabularyWord({
-    required this.id,
-    required this.word,
-    required this.meaning,
-    required this.pronunciation,
-    required this.example,
-    this.languageCode = 'en',
-  });
-}
-
-const _vocabulary = <_VocabularyWord>[
-  _VocabularyWord(
+const _vocabulary = <VocabularyWord>[
+  VocabularyWord(
     id: 'achieve',
     word: 'Achieve',
     meaning: 'يحقق / ينجز',
     pronunciation: '/əˈtʃiːv/',
     example: 'You can achieve your goal with daily practice.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'improve',
     word: 'Improve',
     meaning: 'يحسّن / يتطور',
     pronunciation: '/ɪmˈpruːv/',
     example: 'I want to improve my speaking skills.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'confident',
     word: 'Confident',
     meaning: 'واثق',
     pronunciation: '/ˈkɒnfɪdənt/',
     example: 'She feels confident when she speaks English.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'schedule',
     word: 'Schedule',
     meaning: 'جدول / يرتب موعد',
     pronunciation: '/ˈʃedjuːl/',
     example: 'I study vocabulary according to my schedule.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'conversation',
     word: 'Conversation',
     meaning: 'محادثة',
     pronunciation: '/ˌkɒnvəˈseɪʃn/',
     example: 'This conversation is useful for beginners.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'pronounce',
     word: 'Pronounce',
     meaning: 'ينطق',
     pronunciation: '/prəˈnaʊns/',
     example: 'Can you pronounce this word clearly?',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'remember',
     word: 'Remember',
     meaning: 'يتذكر',
     pronunciation: '/rɪˈmembə/',
     example: 'I remember new words by using flashcards.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'forget',
     word: 'Forget',
     meaning: 'ينسى',
     pronunciation: '/fəˈɡet/',
     example: 'Do not forget to review yesterday’s words.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'explain',
     word: 'Explain',
     meaning: 'يشرح',
     pronunciation: '/ɪkˈspleɪn/',
     example: 'The teacher will explain the lesson again.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'practice',
     word: 'Practice',
     meaning: 'يتدرب / تدريب',
     pronunciation: '/ˈpræktɪs/',
     example: 'Practice makes your pronunciation better.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'useful',
     word: 'Useful',
     meaning: 'مفيد',
     pronunciation: '/ˈjuːsfəl/',
     example: 'This example is useful for daily conversation.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'available',
     word: 'Available',
     meaning: 'متاح',
     pronunciation: '/əˈveɪləbl/',
     example: 'The course is available on the app.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'appointment',
     word: 'Appointment',
     meaning: 'موعد',
     pronunciation: '/əˈpɔɪntmənt/',
     example: 'I have an appointment at five o’clock.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'decision',
     word: 'Decision',
     meaning: 'قرار',
     pronunciation: '/dɪˈsɪʒn/',
     example: 'Learning a language is a great decision.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'journey',
     word: 'Journey',
     meaning: 'رحلة',
     pronunciation: '/ˈdʒɜːni/',
     example: 'Your language journey starts with one word.',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'danke',
     word: 'Danke',
     meaning: 'شكراً',
@@ -780,7 +788,7 @@ const _vocabulary = <_VocabularyWord>[
     example: 'Danke für deine Hilfe.',
     languageCode: 'de',
   ),
-  _VocabularyWord(
+  VocabularyWord(
     id: 'bitte',
     word: 'Bitte',
     meaning: 'من فضلك / عفواً',
@@ -789,3 +797,4 @@ const _vocabulary = <_VocabularyWord>[
     languageCode: 'de',
   ),
 ];
+

@@ -29,6 +29,8 @@ const examResultsFile = path.join(dataDir, 'exam_results.json');
 const activityLogsFile = path.join(dataDir, 'activity_logs.json');
 const appSessionsFile = path.join(dataDir, 'app_sessions.json');
 const communityPostsFile = path.join(dataDir, 'community_posts.json');
+const vocabularyWordsFile = path.join(dataDir, 'vocabulary_words.json');
+const audioResourcesFile = path.join(dataDir, 'audio_resources.json');
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@lingova.com';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const adminSessions = new Map();
@@ -53,6 +55,8 @@ async function ensureStore() {
   await ensureJsonFile(appSessionsFile);
   await ensureJsonFile(supportMessagesFile);
   await ensureJsonFile(communityPostsFile);
+  await ensureJsonFile(vocabularyWordsFile);
+  await ensureJsonFile(audioResourcesFile);
 }
 
 async function ensureJsonFile(file) {
@@ -263,6 +267,34 @@ async function writeCommunityPosts(posts) {
   await fs.writeFile(
     communityPostsFile,
     `${JSON.stringify(posts, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readVocabularyWords() {
+  await ensureStore();
+  const content = await fs.readFile(vocabularyWordsFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeVocabularyWords(words) {
+  await fs.writeFile(
+    vocabularyWordsFile,
+    `${JSON.stringify(words, null, 2)}\n`,
+    'utf8'
+  );
+}
+
+async function readAudioResources() {
+  await ensureStore();
+  const content = await fs.readFile(audioResourcesFile, 'utf8');
+  return JSON.parse(content || '[]');
+}
+
+async function writeAudioResources(resources) {
+  await fs.writeFile(
+    audioResourcesFile,
+    `${JSON.stringify(resources, null, 2)}\n`,
     'utf8'
   );
 }
@@ -712,6 +744,44 @@ function publicCommunityPostDetailed(post, viewerStudentId = '') {
       message: comment.message || '',
       createdAt: comment.createdAt || '',
     })),
+  };
+}
+
+function publicVocabularyWord(word) {
+  return {
+    id: word.id,
+    word: word.word || '',
+    meaning: word.meaning || '',
+    pronunciation: word.pronunciation || '',
+    example: word.example || '',
+    languageCode: word.languageCode || 'en',
+    createdAt: word.createdAt || '',
+    createdBy: word.createdBy || 'Admin',
+  };
+}
+
+function publicAudioResource(resource) {
+  return {
+    id: resource.id,
+    title: resource.title || '',
+    description: resource.description || '',
+    course: resource.course || '',
+    courseLanguage: resource.courseLanguage || '',
+    level: resource.level || '',
+    accessType: normalizeCoursePaymentType(resource.accessType),
+    fileType: resource.fileType || 'audio',
+    linkType: resource.linkType || 'clip',
+    url: resource.url || '',
+    items: Array.isArray(resource.items)
+      ? resource.items.map((item) => ({
+          id: item.id || crypto.randomUUID(),
+          title: item.title || '',
+          url: item.url || '',
+          fileType: item.fileType || resource.fileType || 'audio',
+        }))
+      : [],
+    createdAt: resource.createdAt || '',
+    createdBy: resource.createdBy || 'Admin',
   };
 }
 
@@ -3215,6 +3285,160 @@ async function listAdminSubscriptions(request, response) {
   }
 }
 
+async function listVocabularyWords(request, response) {
+  try {
+    const words = await readVocabularyWords();
+    sendJson(response, 200, { words: words.map(publicVocabularyWord) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل كلمات Vocabulary.' });
+  }
+}
+
+async function listAdminVocabularyWords(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  await listVocabularyWords(request, response);
+}
+
+async function createVocabularyWord(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const word = String(payload.word || '').trim();
+    const meaning = String(payload.meaning || '').trim();
+    if (!word || !meaning) {
+      sendJson(response, 400, { message: 'اكتب الكلمة والمعنى.' });
+      return;
+    }
+
+    const words = await readVocabularyWords();
+    const item = {
+      id: crypto.randomUUID(),
+      word,
+      meaning,
+      pronunciation: String(payload.pronunciation || '').trim(),
+      example: String(payload.example || '').trim(),
+      languageCode: String(payload.languageCode || 'en').trim() || 'en',
+      createdAt: new Date().toISOString(),
+      createdBy: adminSession.name || 'Admin',
+    };
+    words.unshift(item);
+    await writeVocabularyWords(words);
+    sendJson(response, 201, { word: publicVocabularyWord(item) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إضافة الكلمة.' });
+  }
+}
+
+async function deleteVocabularyWord(request, response, wordId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const words = await readVocabularyWords();
+    const nextWords = words.filter((word) => word.id !== wordId);
+    if (nextWords.length === words.length) {
+      sendJson(response, 404, { message: 'الكلمة غير موجودة.' });
+      return;
+    }
+    await writeVocabularyWords(nextWords);
+    sendJson(response, 200, { message: 'تم حذف الكلمة.' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف الكلمة.' });
+  }
+}
+
+async function listAudioResources(request, response) {
+  try {
+    const resources = await readAudioResources();
+    sendJson(response, 200, {
+      resources: resources.map(publicAudioResource),
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر تحميل الصوتيات.' });
+  }
+}
+
+async function listAdminAudioResources(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  await listAudioResources(request, response);
+}
+
+async function createAudioResource(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const title = String(payload.title || '').trim();
+    const urlValue = String(payload.url || '').trim();
+    const linkType = String(payload.linkType || 'clip').trim() === 'folder'
+      ? 'folder'
+      : 'clip';
+    if (!title || !urlValue) {
+      sendJson(response, 400, { message: 'اكتب عنوان الصوت والرابط.' });
+      return;
+    }
+
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    const items = rawItems
+      .map((item) => ({
+        id: crypto.randomUUID(),
+        title: String(item.title || '').trim(),
+        url: String(item.url || '').trim(),
+        fileType: String(item.fileType || payload.fileType || 'audio').trim(),
+      }))
+      .filter((item) => item.title && item.url);
+
+    const resources = await readAudioResources();
+    const resource = {
+      id: crypto.randomUUID(),
+      title,
+      description: String(payload.description || '').trim(),
+      course: String(payload.course || '').trim(),
+      courseLanguage: String(payload.courseLanguage || '').trim(),
+      level: String(payload.level || '').trim(),
+      accessType: normalizeCoursePaymentType(payload.accessType),
+      fileType: String(payload.fileType || 'audio').trim() || 'audio',
+      linkType,
+      url: urlValue,
+      items,
+      createdAt: new Date().toISOString(),
+      createdBy: adminSession.name || 'Admin',
+    };
+    resources.unshift(resource);
+    await writeAudioResources(resources);
+    sendJson(response, 201, { resource: publicAudioResource(resource) });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر إضافة الصوت.' });
+  }
+}
+
+async function deleteAudioResource(request, response, resourceId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const resources = await readAudioResources();
+    const nextResources = resources.filter((resource) => resource.id !== resourceId);
+    if (nextResources.length === resources.length) {
+      sendJson(response, 404, { message: 'الملف الصوتي غير موجود.' });
+      return;
+    }
+    await writeAudioResources(nextResources);
+    sendJson(response, 200, { message: 'تم حذف الملف الصوتي.' });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف الملف الصوتي.' });
+  }
+}
+
 async function listAdminActivityLogs(request, response) {
   if (!requireAdmin(request, response)) {
     return;
@@ -3899,6 +4123,16 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/vocabulary') {
+    await listVocabularyWords(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/audio-resources') {
+    await listAudioResources(request, response);
+    return;
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/notifications') {
     await listNotifications(request, response);
     return;
@@ -4121,6 +4355,30 @@ const server = http.createServer(async (request, response) => {
     }
   }
 
+  if (url.pathname === '/api/admin/vocabulary') {
+    if (request.method === 'GET') {
+      await listAdminVocabularyWords(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createVocabularyWord(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/admin/audio-resources') {
+    if (request.method === 'GET') {
+      await listAdminAudioResources(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await createAudioResource(request, response);
+      return;
+    }
+  }
+
   const userMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
   if (userMatch && request.method === 'PATCH') {
     await updateAdminUser(request, response, userMatch[1]);
@@ -4177,6 +4435,22 @@ const server = http.createServer(async (request, response) => {
   );
   if (bookDeleteActionMatch && request.method === 'POST') {
     await deleteAdminBook(request, response, bookDeleteActionMatch[1]);
+    return;
+  }
+
+  const vocabularyDeleteActionMatch = url.pathname.match(
+    /^\/api\/admin\/vocabulary\/([^/]+)\/delete$/
+  );
+  if (vocabularyDeleteActionMatch && request.method === 'POST') {
+    await deleteVocabularyWord(request, response, vocabularyDeleteActionMatch[1]);
+    return;
+  }
+
+  const audioDeleteActionMatch = url.pathname.match(
+    /^\/api\/admin\/audio-resources\/([^/]+)\/delete$/
+  );
+  if (audioDeleteActionMatch && request.method === 'POST') {
+    await deleteAudioResource(request, response, audioDeleteActionMatch[1]);
     return;
   }
 

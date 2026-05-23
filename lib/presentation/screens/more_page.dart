@@ -5,6 +5,7 @@ import '../../data/services/auth_storage_service.dart';
 import '../../domain/entities/book.dart';
 import '../../data/datasources/book_api_datasource.dart';
 import 'ai_chat_page.dart';
+import 'audio_resources_page.dart';
 import 'book_viewer_screen.dart';
 import 'certificates_page.dart';
 import 'community_page.dart';
@@ -54,6 +55,11 @@ class MorePage extends StatelessWidget {
 
     if (title == 'Vocabulary') {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VocabularyPage()));
+      return;
+    }
+
+    if (title == 'الملفات الصوتية') {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AudioResourcesPage()));
       return;
     }
 

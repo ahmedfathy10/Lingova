@@ -1,5 +1,6 @@
 import 'admin_support_chat_page.dart';
 import 'admin_community_page.dart';
+import 'admin_learning_content_pages.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
@@ -116,6 +117,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           label: Text('الكتب'),
         ),
         NavigationDrawerDestination(
+          icon: Icon(Icons.translate_outlined),
+          selectedIcon: Icon(Icons.translate_rounded),
+          label: Text('Vocabulary'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.headphones_outlined),
+          selectedIcon: Icon(Icons.headphones_rounded),
+          label: Text('الصوتيات'),
+        ),
+        NavigationDrawerDestination(
           icon: Icon(Icons.forum_outlined),
           selectedIcon: Icon(Icons.forum_rounded),
           label: Text('الأسئلة'),
@@ -151,6 +162,8 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       AdminCertificatesPage(session: widget.session),
       AdminCoursesPage(session: widget.session),
       AdminBooksPage(session: widget.session),
+      AdminVocabularyPage(session: widget.session),
+      AdminAudioResourcesPage(session: widget.session),
       AdminQuestionsPage(session: widget.session),
       AdminSupportChatPage(token: widget.session.token),
       AdminCommunityPage(token: widget.session.token),
@@ -234,6 +247,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   icon: Icon(Icons.menu_book_outlined),
                   selectedIcon: Icon(Icons.menu_book_rounded),
                   label: Text('الكتب'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.translate_outlined),
+                  selectedIcon: Icon(Icons.translate_rounded),
+                  label: Text('Vocabulary'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.headphones_outlined),
+                  selectedIcon: Icon(Icons.headphones_rounded),
+                  label: Text('الصوتيات'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.forum_outlined),
