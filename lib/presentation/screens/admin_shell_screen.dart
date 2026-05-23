@@ -16,6 +16,7 @@ import '../../data/services/admin_api_service.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/course_image_picker.dart';
 import '../../data/services/exam_api_service.dart';
+import '../../data/services/push_notification_service.dart';
 import '../../data/services/text_file_downloader.dart';
 import '../../data/services/watch_progress_api_service.dart';
 import 'admin_login_screen.dart';
@@ -50,6 +51,16 @@ class AdminShellScreen extends StatefulWidget {
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    PushNotificationService.instance.bindAdmin(
+      adminId: widget.session.email.isNotEmpty
+          ? widget.session.email
+          : 'system-admin',
+    );
+  }
 
   Widget _buildDrawer() {
     return NavigationDrawer(

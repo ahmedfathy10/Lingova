@@ -1282,7 +1282,12 @@ async function registerDeviceToken(request, response) {
 
     const users = await readUsers();
     const user = users.find((currentUser) => currentUser.id === userId);
-    if (!user) {
+    const isSystemAdmin =
+      role === 'admin' &&
+      (userId === 'system-admin' ||
+        userId === adminEmail ||
+        userId === normalizePhone(adminEmail));
+    if (!user && !isSystemAdmin) {
       sendJson(response, 404, { message: 'بيانات المستخدم غير موجودة.' });
       return;
     }
@@ -1293,11 +1298,15 @@ async function registerDeviceToken(request, response) {
       existing.userId = userId;
       existing.role = role;
       existing.platform = platform;
+      existing.userName = user?.fullName || (role === 'admin' ? 'Lingova Admin' : '');
+      existing.userPhone = user?.phone || (role === 'admin' ? adminEmail : '');
       existing.updatedAt = new Date().toISOString();
     } else {
       deviceTokens.push({
         id: crypto.randomUUID(),
         userId,
+        userName: user?.fullName || (role === 'admin' ? 'Lingova Admin' : ''),
+        userPhone: user?.phone || (role === 'admin' ? adminEmail : ''),
         role,
         token,
         platform,
@@ -2915,6 +2924,11 @@ async function commentOnCommunityPost(request, response, postId) {
       createdAt: new Date().toISOString(),
     });
     await writeCommunityPosts(posts);
+    await notifyAdmins(
+      'تعليق جديد في المجتمع',
+      `${user.fullName || authorName || 'طالب'} علّق على بوست في المجتمع.`,
+      'admin_new_community_comment'
+    );
     sendJson(response, 201, { post: publicCommunityPostDetailed(post, studentId) });
   } catch {
     sendJson(response, 500, { message: 'تعذر إضافة التعليق.' });
