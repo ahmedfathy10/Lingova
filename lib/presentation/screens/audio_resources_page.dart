@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/app_colors.dart';
 import '../../data/models/audio_resource.dart';
@@ -37,28 +37,40 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
     return user.hasCourse(resource.courseLanguage, resource.course);
   }
 
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
   void _openResource(AudioResource resource) {
     if (!_canOpen(resource)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('هذا الملف متاح بعد شراء الكورس.', textAlign: TextAlign.right),
-        ),
-      );
+      _showLockedMessage();
       return;
     }
+
     if (resource.isFolder && resource.items.isNotEmpty) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => _AudioFolderPage(resource: resource)),
       );
       return;
     }
-    _openUrl(resource.url);
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _AudioPlayerPage(
+          title: resource.title,
+          url: resource.url,
+          fileType: resource.fileType,
+          subtitle: '${resource.course} - ${resource.level}',
+        ),
+      ),
+    );
+  }
+
+  void _showLockedMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'هذا الملف متاح بعد شراء الكورس.',
+          textAlign: TextAlign.right,
+        ),
+      ),
+    );
   }
 
   Map<String, Map<String, List<AudioResource>>> _group(
@@ -80,31 +92,222 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('الملفات الصوتية')),
-        body: FutureBuilder<List<AudioResource>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final resources = snapshot.data ?? const <AudioResource>[];
-            if (resources.isEmpty) {
-              return const Center(child: Text('لا توجد صوتيات حالياً.'));
-            }
-            final grouped = _group(resources);
-            return ListView(
-              padding: const EdgeInsets.all(18),
-              children: grouped.entries.map((courseEntry) {
-                return _CourseAudioGroup(
-                  course: courseEntry.key,
-                  levels: courseEntry.value,
-                  canOpen: _canOpen,
-                  onOpen: _openResource,
-                );
-              }).toList(),
-            );
-          },
+        body: SafeArea(
+          child: FutureBuilder<List<AudioResource>>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final resources = snapshot.data ?? const <AudioResource>[];
+              if (resources.isEmpty) {
+                return const _AudioEmptyState();
+              }
+
+              final grouped = _group(resources);
+              final folders = resources.where((item) => item.isFolder).length;
+              final paid = resources.where((item) => item.isPaid).length;
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  setState(() => _future = _load());
+                  await _future;
+                },
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    const _AudioHeader(),
+                    const SizedBox(height: 16),
+                    _AudioStatsBar(
+                      total: resources.length,
+                      folders: folders,
+                      paid: paid,
+                    ),
+                    const SizedBox(height: 18),
+                    ...grouped.entries.map((courseEntry) {
+                      return _CourseAudioGroup(
+                        course: courseEntry.key,
+                        levels: courseEntry.value,
+                        canOpen: _canOpen,
+                        onOpen: _openResource,
+                      );
+                    }),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _AudioHeader extends StatelessWidget {
+  const _AudioHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.orange.withValues(alpha: .22)),
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            AppColors.orange.withValues(alpha: .22),
+            AppColors.surface,
+            AppColors.surfaceHigh.withValues(alpha: .75),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.orange.withValues(alpha: .10),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          PositionedDirectional(
+            end: -20,
+            top: -26,
+            child: Icon(
+              Icons.graphic_eq_rounded,
+              size: 125,
+              color: AppColors.orange.withValues(alpha: .08),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 62,
+                height: 62,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFFFB15D), AppColors.orange],
+                  ),
+                ),
+                child: const Icon(
+                  Icons.headphones_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'الملفات الصوتية',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'استمع للدروس والتدريبات داخل التطبيق.',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AudioStatsBar extends StatelessWidget {
+  final int total;
+  final int folders;
+  final int paid;
+
+  const _AudioStatsBar({
+    required this.total,
+    required this.folders,
+    required this.paid,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _AudioStatPill(
+            icon: Icons.library_music_rounded,
+            label: 'ملف',
+            value: total.toString(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _AudioStatPill(
+            icon: Icons.folder_rounded,
+            label: 'فولدر',
+            value: folders.toString(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _AudioStatPill(
+            icon: Icons.lock_rounded,
+            label: 'مدفوع',
+            value: paid.toString(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AudioStatPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _AudioStatPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 17, color: AppColors.orange),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              '$value $label',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -123,43 +326,203 @@ class _CourseAudioGroup extends StatelessWidget {
     required this.onOpen,
   });
 
+  int get _count {
+    return levels.values.fold(0, (sum, items) => sum + items.length);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
       ),
-      child: ExpansionTile(
-        initiallyExpanded: true,
-        title: Text(course, style: const TextStyle(fontWeight: FontWeight.w900)),
-        children: levels.entries.map((levelEntry) {
-          return ExpansionTile(
-            title: Text(levelEntry.key),
-            children: levelEntry.value.map((resource) {
-              final locked = !canOpen(resource);
-              return ListTile(
-                leading: Icon(
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.orangeSoft,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(Icons.school_rounded, color: AppColors.orange),
+          ),
+          title: Text(
+            course,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text(
+            '$_count ملف صوتي',
+            textAlign: TextAlign.right,
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+          children: levels.entries.map((levelEntry) {
+            return _LevelAudioGroup(
+              level: levelEntry.key,
+              resources: levelEntry.value,
+              canOpen: canOpen,
+              onOpen: onOpen,
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _LevelAudioGroup extends StatelessWidget {
+  final String level;
+  final List<AudioResource> resources;
+  final bool Function(AudioResource resource) canOpen;
+  final ValueChanged<AudioResource> onOpen;
+
+  const _LevelAudioGroup({
+    required this.level,
+    required this.resources,
+    required this.canOpen,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceHigh.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          title: Text(
+            level,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text(
+            '${resources.length} عنصر',
+            textAlign: TextAlign.right,
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
+          children: resources.map((resource) {
+            final locked = !canOpen(resource);
+            return _AudioResourceTile(
+              resource: resource,
+              locked: locked,
+              onTap: () => onOpen(resource),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _AudioResourceTile extends StatelessWidget {
+  final AudioResource resource;
+  final bool locked;
+  final VoidCallback onTap;
+
+  const _AudioResourceTile({
+    required this.resource,
+    required this.locked,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = resource.isFolder
+        ? Icons.folder_rounded
+        : Icons.play_circle_fill_rounded;
+    final subtitle = [
+      resource.fileType,
+      resource.isPaid ? 'مع شراء الكورس' : 'مجاني',
+      if (resource.isFolder) '${resource.items.length} ملفات',
+    ].join('  |  ');
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: locked
+                        ? AppColors.surfaceHigh
+                        : AppColors.orange.withValues(alpha: .14),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    locked ? Icons.lock_rounded : icon,
+                    color: locked ? AppColors.textMuted : AppColors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        resource.title,
+                        textAlign: TextAlign.right,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
                   resource.isFolder
-                      ? Icons.folder_rounded
-                      : Icons.headphones_rounded,
-                  color: locked ? AppColors.textMuted : AppColors.orange,
+                      ? Icons.arrow_back_ios_new_rounded
+                      : Icons.graphic_eq_rounded,
+                  size: 18,
+                  color: AppColors.textMuted,
                 ),
-                title: Text(resource.title, textAlign: TextAlign.right),
-                subtitle: Text(
-                  '${resource.fileType} • ${resource.isPaid ? 'مع شراء الكورس' : 'مجاني'}',
-                  textAlign: TextAlign.right,
-                ),
-                trailing: Icon(
-                  locked ? Icons.lock_rounded : Icons.play_circle_rounded,
-                ),
-                onTap: () => onOpen(resource),
-              );
-            }).toList(),
-          );
-        }).toList(),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -170,10 +533,17 @@ class _AudioFolderPage extends StatelessWidget {
 
   const _AudioFolderPage({required this.resource});
 
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  void _openItem(BuildContext context, AudioResourceItem item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _AudioPlayerPage(
+          title: item.title,
+          url: item.url,
+          fileType: item.fileType,
+          subtitle: resource.title,
+        ),
+      ),
+    );
   }
 
   @override
@@ -181,19 +551,266 @@ class _AudioFolderPage extends StatelessWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: Text(resource.title)),
-        body: ListView(
-          padding: const EdgeInsets.all(18),
-          children: resource.items.map((item) {
-            return Card(
-              child: ListTile(
-                leading: const Icon(Icons.play_circle_rounded),
-                title: Text(item.title, textAlign: TextAlign.right),
-                subtitle: Text(item.fileType, textAlign: TextAlign.right),
-                onTap: () => _openUrl(item.url),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                  ),
+                  Expanded(
+                    child: Text(
+                      resource.title,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            );
-          }).toList(),
+              const SizedBox(height: 14),
+              ...resource.items.map((item) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Material(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        side: BorderSide(color: AppColors.border),
+                      ),
+                      leading: const Icon(
+                        Icons.play_circle_fill_rounded,
+                        color: AppColors.orange,
+                      ),
+                      title: Text(item.title, textAlign: TextAlign.right),
+                      subtitle: Text(item.fileType, textAlign: TextAlign.right),
+                      onTap: () => _openItem(context, item),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AudioPlayerPage extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final String url;
+  final String fileType;
+
+  const _AudioPlayerPage({
+    required this.title,
+    required this.subtitle,
+    required this.url,
+    required this.fileType,
+  });
+
+  @override
+  State<_AudioPlayerPage> createState() => _AudioPlayerPageState();
+}
+
+class _AudioPlayerPageState extends State<_AudioPlayerPage> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) {
+            if (mounted) setState(() => _isLoading = false);
+          },
+        ),
+      )
+      ..loadHtmlString(_playerHtml());
+  }
+
+  String _playerHtml() {
+    final source = _embedUrl(widget.url);
+    final isDirectAudio = _looksLikeDirectAudio(source);
+    final title = _escape(widget.title);
+    final subtitle = _escape(widget.subtitle);
+    final body = isDirectAudio
+        ? '''
+          <audio controls autoplay controlsList="nodownload" src="$source"></audio>
+        '''
+        : '''
+          <iframe src="$source" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        ''';
+
+    return '''
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #0b0d12;
+    font-family: Arial, sans-serif;
+    color: #fff;
+  }
+  .wrap {
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+    background:
+      radial-gradient(circle at 85% 5%, rgba(255,122,0,.26), transparent 34%),
+      linear-gradient(145deg, #141922, #0b0d12 70%);
+  }
+  .badge {
+    display: inline-block;
+    width: fit-content;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255,122,0,.15);
+    color: #ffb15d;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  h1 {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.25;
+  }
+  p {
+    margin: 0;
+    color: rgba(255,255,255,.68);
+    font-size: 14px;
+  }
+  .player {
+    width: 100%;
+    min-height: 250px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 22px;
+    overflow: hidden;
+    background: rgba(255,255,255,.06);
+    box-shadow: 0 22px 55px rgba(0,0,0,.35);
+  }
+  iframe {
+    width: 100%;
+    height: 70vh;
+    border: 0;
+    display: block;
+    background: #111;
+  }
+  audio {
+    width: calc(100% - 32px);
+    margin: 110px 16px;
+    accent-color: #ff7a00;
+  }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <span class="badge">${_escape(widget.fileType)}</span>
+    <h1>$title</h1>
+    <p>$subtitle</p>
+    <section class="player">$body</section>
+  </main>
+</body>
+</html>
+''';
+  }
+
+  String _embedUrl(String value) {
+    final url = value.trim();
+    final fileMatch = RegExp(r'drive\.google\.com/file/d/([^/]+)').firstMatch(url);
+    if (fileMatch != null) {
+      return 'https://drive.google.com/file/d/${fileMatch.group(1)}/preview';
+    }
+    final openMatch = RegExp(r'drive\.google\.com/open\?id=([^&]+)').firstMatch(url);
+    if (openMatch != null) {
+      return 'https://drive.google.com/file/d/${openMatch.group(1)}/preview';
+    }
+    final folderMatch = RegExp(r'drive\.google\.com/drive/folders/([^/?]+)').firstMatch(url);
+    if (folderMatch != null) {
+      return 'https://drive.google.com/embeddedfolderview?id=${folderMatch.group(1)}#list';
+    }
+    return url;
+  }
+
+  bool _looksLikeDirectAudio(String value) {
+    final path = Uri.tryParse(value)?.path.toLowerCase() ?? value.toLowerCase();
+    return path.endsWith('.mp3') ||
+        path.endsWith('.m4a') ||
+        path.endsWith('.wav') ||
+        path.endsWith('.ogg') ||
+        path.endsWith('.aac');
+  }
+
+  String _escape(String value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: Text(widget.title)),
+        body: Stack(
+          children: [
+            WebViewWidget(controller: _controller),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AudioEmptyState extends StatelessWidget {
+  const _AudioEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.headphones_rounded, size: 68, color: AppColors.orange),
+            const SizedBox(height: 14),
+            const Text(
+              'لا توجد صوتيات حالياً',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'سيظهر هنا محتوى الكورسات الصوتي بعد إضافته من لوحة التحكم.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ],
         ),
       ),
     );
