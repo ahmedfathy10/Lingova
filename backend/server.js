@@ -10,7 +10,11 @@ try {
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
-const dataDir = path.join(__dirname, 'data');
+const bundledDataDir = path.join(__dirname, 'data');
+const dataDir =
+  process.env.LINGOVA_DATA_DIR ||
+  process.env.RAILWAY_VOLUME_MOUNT_PATH ||
+  bundledDataDir;
 const usersFile = path.join(dataDir, 'users.json');
 const coursesFile = path.join(dataDir, 'courses.json');
 const booksFile = path.join(dataDir, 'books.json');
@@ -35,76 +39,38 @@ let firebaseMessaging = undefined;
 
 async function ensureStore() {
   await fs.mkdir(dataDir, { recursive: true });
+  await ensureJsonFile(usersFile);
+  await ensureJsonFile(coursesFile);
+  await ensureJsonFile(booksFile);
+  await ensureJsonFile(subscriptionsFile);
+  await ensureJsonFile(notificationsFile);
+  await ensureJsonFile(deviceTokensFile);
+  await ensureJsonFile(questionsFile);
+  await ensureJsonFile(watchProgressFile);
+  await ensureJsonFile(examsFile);
+  await ensureJsonFile(examResultsFile);
+  await ensureJsonFile(activityLogsFile);
+  await ensureJsonFile(appSessionsFile);
+  await ensureJsonFile(supportMessagesFile);
+  await ensureJsonFile(communityPostsFile);
+}
+
+async function ensureJsonFile(file) {
   try {
-    await fs.access(usersFile);
-  } catch {
-    await fs.writeFile(usersFile, '[]\n', 'utf8');
+    await fs.access(file);
+    return;
+  } catch {}
+
+  const seedFile = path.join(bundledDataDir, path.basename(file));
+  if (path.resolve(seedFile) !== path.resolve(file)) {
+    try {
+      const seedContent = await fs.readFile(seedFile, 'utf8');
+      await fs.writeFile(file, seedContent || '[]\n', 'utf8');
+      return;
+    } catch {}
   }
-  try {
-    await fs.access(coursesFile);
-  } catch {
-    await fs.writeFile(coursesFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(booksFile);
-  } catch {
-    await fs.writeFile(booksFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(subscriptionsFile);
-  } catch {
-    await fs.writeFile(subscriptionsFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(notificationsFile);
-  } catch {
-    await fs.writeFile(notificationsFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(deviceTokensFile);
-  } catch {
-    await fs.writeFile(deviceTokensFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(questionsFile);
-  } catch {
-    await fs.writeFile(questionsFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(watchProgressFile);
-  } catch {
-    await fs.writeFile(watchProgressFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(examsFile);
-  } catch {
-    await fs.writeFile(examsFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(examResultsFile);
-  } catch {
-    await fs.writeFile(examResultsFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(activityLogsFile);
-  } catch {
-    await fs.writeFile(activityLogsFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(appSessionsFile);
-  } catch {
-    await fs.writeFile(appSessionsFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(supportMessagesFile);
-  } catch {
-    await fs.writeFile(supportMessagesFile, '[]\n', 'utf8');
-  }
-  try {
-    await fs.access(communityPostsFile);
-  } catch {
-    await fs.writeFile(communityPostsFile, '[]\n', 'utf8');
-  }
+
+  await fs.writeFile(file, '[]\n', 'utf8');
 }
 
 async function readUsers() {
