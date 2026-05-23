@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/app_colors.dart';
 import '../../data/models/audio_resource.dart';
 import '../../data/models/auth_user.dart';
 import '../../data/services/auth_storage_service.dart';
 import '../../data/services/content_management_api_service.dart';
+import '../widgets/audio_embed_widget.dart';
 
 class AudioResourcesPage extends StatefulWidget {
   const AudioResourcesPage({super.key});
@@ -622,24 +622,6 @@ class _AudioPlayerPage extends StatefulWidget {
 }
 
 class _AudioPlayerPageState extends State<_AudioPlayerPage> {
-  late final WebViewController _controller;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (_) {
-            if (mounted) setState(() => _isLoading = false);
-          },
-        ),
-      )
-      ..loadHtmlString(_playerHtml());
-  }
-
   String _playerHtml() {
     final source = _embedUrl(widget.url);
     final isDirectAudio = _looksLikeDirectAudio(source);
@@ -774,13 +756,7 @@ class _AudioPlayerPageState extends State<_AudioPlayerPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: Text(widget.title)),
-        body: Stack(
-          children: [
-            WebViewWidget(controller: _controller),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator()),
-          ],
-        ),
+        body: AudioEmbedWidget(html: _playerHtml()),
       ),
     );
   }
