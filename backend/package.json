@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "firebase-admin": "^13.9.0"
   },
   "scripts": {
+    "migrate:supabase": "node scripts/migrate-json-to-supabase.js",
     "start": "node server.js"
   }
 }

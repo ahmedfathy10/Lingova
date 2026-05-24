@@ -342,18 +342,19 @@ async function writeSupportMessages(messages) {
 function publicSupportMessage(message) {
   return {
     id: message.id,
-    studentId: message.studentId || '',
-    studentName: message.studentName || '',
-    studentPhone: message.studentPhone || '',
-    message: message.message || '',
+    studentId: message.studentId || message.userId || '',
+    studentName: message.studentName || message.userName || message.authorName || '',
+    studentPhone: message.studentPhone || message.userPhone || '',
+    message: message.message || message.text || message.body || message.content || '',
     answer: message.answer || '',
     sender: message.sender || 'student',
     status: message.status || 'open',
-    readByAdmin: message.readByAdmin === true,
-    readByStudent: message.readByStudent === true,
-    createdAt: message.createdAt,
-    answeredAt: message.answeredAt || '',
-    answeredBy: message.answeredBy || '',
+    readByAdmin: message.readByAdmin === true || message.readByAdmin === 'true' || message.read_by_admin === true || message.read_by_admin === 'true',
+    readByStudent: message.readByStudent === true || message.readByStudent === 'true' || message.read_by_student === true || message.read_by_student === 'true',
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
+    createdAt: message.createdAt || message.created_at || message.timestamp || message.sentAt,
+    answeredAt: message.answeredAt || message.answered_at || '',
+    answeredBy: message.answeredBy || message.answered_by || '',
   };
 }
 
@@ -791,20 +792,21 @@ function publicNotification(notification) {
 function publicCourseQuestion(question) {
   return {
     id: question.id,
-    studentId: question.studentId,
-    studentName: question.studentName || '',
-    courseTitle: question.courseTitle || '',
-    courseLanguage: question.courseLanguage || '',
-    levelTitle: question.levelTitle || '',
-    lectureTitle: question.lectureTitle || '',
-    partTitle: question.partTitle || '',
-    vimeoUrl: question.vimeoUrl || '',
-    question: question.question || '',
+    studentId: question.studentId || question.userId || '',
+    studentName: question.studentName || question.userName || '',
+    courseTitle: question.courseTitle || question.course_title || '',
+    courseLanguage: question.courseLanguage || question.course_language || '',
+    levelTitle: question.levelTitle || question.level_title || '',
+    lectureTitle: question.lectureTitle || question.lessonTitle || question.lesson_title || '',
+    partTitle: question.partTitle || question.part_title || '',
+    vimeoUrl: question.vimeoUrl || question.vimeo_url || '',
+    question: question.question || question.message || question.text || '',
     answer: question.answer || '',
     status: question.status || 'pending',
-    createdAt: question.createdAt,
-    answeredAt: question.answeredAt || '',
-    answeredBy: question.answeredBy || '',
+    attachments: Array.isArray(question.attachments) ? question.attachments : [],
+    createdAt: question.createdAt || question.created_at,
+    answeredAt: question.answeredAt || question.answered_at || '',
+    answeredBy: question.answeredBy || question.answered_by || '',
   };
 }
 
@@ -814,32 +816,38 @@ function publicSupportMessage(message) {
 
   return {
     id: message.id,
-    studentId: message.studentId || '',
-    studentName: message.studentName || '',
-    studentPhone: message.studentPhone || '',
+    studentId: message.studentId || message.userId || message.senderId || '',
+    studentName: message.studentName || message.userName || message.senderName || message.authorName || '',
+    studentPhone: message.studentPhone || message.userPhone || '',
     sender,
-    message: message.message || (sender === 'admin' ? message.answer || '' : ''),
+    message: message.message || message.text || message.body || message.content || (sender === 'admin' ? message.answer || '' : ''),
     answer: message.answer || '',
     status: message.status || 'pending',
-    readByAdmin: message.readByAdmin === true,
-    readByStudent: message.readByStudent === true,
-    createdAt: message.createdAt,
-    answeredAt: message.answeredAt || '',
-    answeredBy: message.answeredBy || '',
+    readByAdmin: message.readByAdmin === true || message.readByAdmin === 'true' || message.read_by_admin === true || message.read_by_admin === 'true',
+    readByStudent: message.readByStudent === true || message.readByStudent === 'true' || message.read_by_student === true || message.read_by_student === 'true',
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
+    createdAt: message.createdAt || message.created_at || message.timestamp || message.sentAt,
+    answeredAt: message.answeredAt || message.answered_at || '',
+    answeredBy: message.answeredBy || message.answered_by || '',
   };
 }
 
 function publicCommunityPost(post) {
+  post = { ...post, authorName: post.authorName || post.studentName || post.userName };
+
   return {
     id: post.id,
-    studentId: post.studentId || '',
+    studentId: post.studentId || post.userId || '',
     authorName: post.authorName || 'مستخدم',
-    message: post.message || '',
-    createdAt: post.createdAt,
+    message: post.message || post.content || post.text || '',
+    attachments: Array.isArray(post.attachments) ? post.attachments : [],
+    createdAt: post.createdAt || post.created_at || post.timestamp,
   };
 }
 
 function publicCommunityPostDetailed(post, viewerStudentId = '') {
+  post = { ...post, authorName: post.authorName || post.studentName || post.userName };
+
   const reactions = post.reactions && typeof post.reactions === 'object'
     ? post.reactions
     : {};
@@ -847,14 +855,15 @@ function publicCommunityPostDetailed(post, viewerStudentId = '') {
   const reactionValues = Object.values(reactions);
   return {
     id: post.id,
-    studentId: post.studentId || '',
+    studentId: post.studentId || post.userId || '',
     authorName: post.authorName || 'مستخدم',
-    message: post.message || '',
-    createdAt: post.createdAt,
+    message: post.message || post.content || post.text || '',
+    attachments: Array.isArray(post.attachments) ? post.attachments : [],
+    createdAt: post.createdAt || post.created_at || post.timestamp,
     likesCount: reactionValues.filter((reaction) => reaction === 'like').length,
     dislikesCount: reactionValues.filter((reaction) => reaction === 'dislike').length,
     commentsCount: comments.length,
-    sharesCount: Number(post.sharesCount || 0),
+    sharesCount: Number(post.sharesCount || post.shares || 0),
     userReaction: viewerStudentId ? reactions[viewerStudentId] || '' : '',
     comments: comments.map((comment) => ({
       id: comment.id,
