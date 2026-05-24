@@ -49,6 +49,57 @@ ImageProvider<Object>? _courseImageProvider(String imageDataUrl) {
       return readAt;
     }
   }
+
+  Widget _buildReadersAvatars() {
+    final display = _readers.take(4).toList();
+    final extra = _readers.length - display.length;
+
+    return Row(
+      textDirection: TextDirection.rtl,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...display.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final reader = entry.value;
+          return Container(
+            margin: EdgeInsets.only(left: idx == display.length - 1 ? 0 : -8),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.grey.shade800,
+              child: Text(
+                _initials(reader.fullName.isNotEmpty ? reader.fullName : reader.id),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          );
+        }),
+        if (extra > 0)
+          Container(
+            margin: const EdgeInsets.only(left: -8),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white24.withValues(alpha: .06)),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '+$extra',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _initials(String name) {
+    if (name.trim().isEmpty) return '';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
+    return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+  }
+
   if (imageDataUrl.startsWith('data:')) {
     try {
       final data = Uri.parse(imageDataUrl).data;
@@ -60,148 +111,178 @@ ImageProvider<Object>? _courseImageProvider(String imageDataUrl) {
   return NetworkImage(imageDataUrl);
 }
 
-String _money(int value) => '$value EGP';
+class _ReadersDialog extends StatelessWidget {
+  final List<NotificationReader> readers;
 
-class AdminShellScreen extends StatefulWidget {
-  final AdminSession session;
-
-  const AdminShellScreen({super.key, required this.session});
-
-  @override
-  State<AdminShellScreen> createState() => _AdminShellScreenState();
-}
-
-class _AdminShellScreenState extends State<AdminShellScreen> {
-  int _index = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    PushNotificationService.instance.bindAdmin(
-      adminId: widget.session.email.isNotEmpty
-          ? widget.session.email
-          : 'system-admin',
-    );
-  }
-
-  Widget _buildDrawer() {
-    return NavigationDrawer(
-      selectedIndex: _index,
-      onDestinationSelected: (value) {
-        setState(() => _index = value);
-        Navigator.of(context).pop(); // Close drawer
-      },
-      children: const [
-        NavigationDrawerDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard_rounded),
-          label: Text('الداشبورد'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.history_outlined),
-          selectedIcon: Icon(Icons.history_rounded),
-          label: Text('سجل النشاط'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.people_outline_rounded),
-          selectedIcon: Icon(Icons.people_rounded),
-          label: Text('المستخدمين'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.receipt_long_outlined),
-          selectedIcon: Icon(Icons.receipt_long_rounded),
-          label: Text('طلبات الاشتراك'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.quiz_outlined),
-          selectedIcon: Icon(Icons.quiz_rounded),
-          label: Text('الامتحانات'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.assignment_turned_in_outlined),
-          selectedIcon: Icon(Icons.assignment_turned_in_rounded),
-          label: Text('تقارير الامتحانات'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.auto_stories_outlined),
-          selectedIcon: Icon(Icons.auto_stories_rounded),
-          label: Text('الشهادات'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.video_library_outlined),
-          selectedIcon: Icon(Icons.video_library_rounded),
-          label: Text('الكورسات'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.menu_book_outlined),
-          selectedIcon: Icon(Icons.menu_book_rounded),
-          label: Text('الكتب'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.translate_outlined),
-          selectedIcon: Icon(Icons.translate_rounded),
-          label: Text('Vocabulary'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.headphones_outlined),
-          selectedIcon: Icon(Icons.headphones_rounded),
-          label: Text('الصوتيات'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.forum_outlined),
-          selectedIcon: Icon(Icons.forum_rounded),
-          label: Text('الأسئلة'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.support_agent_outlined),
-          selectedIcon: Icon(Icons.support_agent_rounded),
-          label: Text('الشات'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.groups_outlined),
-          selectedIcon: Icon(Icons.groups_rounded),
-          label: Text('المجتمع'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.notifications_outlined),
-          selectedIcon: Icon(Icons.notifications_rounded),
-          label: Text('الإشعارات'),
-        ),
-        NavigationDrawerDestination(
-          icon: Icon(Icons.dynamic_form_outlined),
-          selectedIcon: Icon(Icons.dynamic_form_rounded),
-          label: Text('فورم التسجيل'),
-        ),
-      ],
-    );
-  }
+  const _ReadersDialog({required this.readers});
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      AdminDashboardPage(session: widget.session),
-      AdminActivityLogsPage(session: widget.session),
-      AdminUsersPage(session: widget.session),
-      AdminSubscriptionsPage(session: widget.session),
-      AdminExamsPage(session: widget.session),
-      AdminExamReportsPage(session: widget.session),
-      AdminCertificatesPage(session: widget.session),
-      AdminCoursesPage(session: widget.session),
-      AdminBooksPage(session: widget.session),
-      AdminVocabularyPage(session: widget.session),
-      AdminAudioResourcesPage(session: widget.session),
-      AdminQuestionsPage(session: widget.session),
-      AdminSupportChatPage(token: widget.session.token),
-      AdminCommunityPage(token: widget.session.token),
-      AdminNotificationsPage(session: widget.session),
-      AdminRegistrationFormSettingsPage(session: widget.session),
-    ];
-    final isWide = MediaQuery.sizeOf(context).width >= 850;
+    return Dialog(
+      backgroundColor: const Color(0xff07101a),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 520),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
+              child: Row(
+                textDirection: TextDirection.rtl,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'قرّاء الإشعار',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(12),
+                itemCount: readers.length,
+                separatorBuilder: (_, __) => const Divider(height: 8),
+                itemBuilder: (context, index) {
+                  final r = readers[index];
+                  return ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.grey.shade800,
+                      child: Text(
+                        (r.fullName.isNotEmpty ? r.fullName : r.id)
+                            .split(RegExp(r'\s+'))
+                            .map((s) => s.isEmpty ? '' : s[0].toUpperCase())
+                            .take(2)
+                            .join(),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    title: Text(
+                      r.fullName.isNotEmpty ? r.fullName : r.id,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      r.phone.isNotEmpty ? r.phone : '',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                    trailing: Text(
+                      r.readAt.isNotEmpty ? _readableTime(r.readAt) : '',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('لوحة تحكم Lingova'),
-        leading: Builder(
+  static String _readableTime(String iso) {
+    try {
+      final dt = DateTime.tryParse(iso);
+      if (dt == null) return iso;
+      final local = dt.toLocal();
+      final y = local.year.toString().padLeft(4, '0');
+      final m = local.month.toString().padLeft(2, '0');
+      final d = local.day.toString().padLeft(2, '0');
+      final hh = local.hour.toString().padLeft(2, '0');
+      final mm = local.minute.toString().padLeft(2, '0');
+      return '$d/$m/$y $hh:$mm';
+    } catch (_) {
+      return iso;
+    }
+  }
+}
+
+String _money(int value) => '$value EGP';
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .035),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .06),
+                    ),
+                  ),
+                  child: Row(
+                    textDirection: TextDirection.rtl,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'القراء',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: _loadingReaders
+                                  ? const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : Text(
+                                      _readers.isEmpty
+                                          ? 'لم يقرأه أي طالب بعد'
+                                          : '${_readers.length} قرأ/قرأت',
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _buildReadersAvatars(),
+                      const SizedBox(width: 12),
+                      _readers.isEmpty
+                          ? const SizedBox.shrink()
+                          : OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.white24.withValues(alpha: .06)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              onPressed: !_loadingReaders
+                                  ? () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) => _ReadersDialog(readers: _readers),
+                                      );
+                                    }
+                                  : null,
+                              child: Text('عرض جميع القراء'),
+                            ),
+                    ],
+                  ),
+                ),
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
             onPressed: () => Scaffold.of(context).openDrawer(),
@@ -4064,6 +4145,23 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
     _fetchReaders();
   }
 
+  String _formatReadAt(String? value) {
+    if (value == null || value.isEmpty) {
+      return '';
+    }
+
+    try {
+      final date = DateTime.parse(value).toLocal();
+
+      String two(int n) => n.toString().padLeft(2, '0');
+
+      return '${date.year}/${two(date.month)}/${two(date.day)} '
+          '${two(date.hour)}:${two(date.minute)}';
+    } catch (_) {
+      return value;
+    }
+  }
+
   Future<void> _fetchReaders() async {
     setState(() => _loadingReaders = true);
     try {
@@ -4207,19 +4305,20 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
                                       ? const SizedBox(
                                           height: 18,
                                           width: 18,
-                                          child:
-                                              CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         )
-                                            : Text(
-                                                _readers.isEmpty
-                                                    ? 'لم يقرأه أي طالب بعد'
-                                                    : '${_readers.length} قرأ/قرأت',
-                                                textAlign: TextAlign.right,
-                                                style: TextStyle(
-                                                  color: AppColors.textMuted,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
+                                      : Text(
+                                          _readers.isEmpty
+                                              ? 'لم يقرأه أي طالب بعد'
+                                              : '${_readers.length} قرأ/قرأت',
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 12,
+                                          ),
+                                        ),
                                 ),
                               ],
                             ),
@@ -4232,58 +4331,63 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             ...(_expanded ? _readers : _readers.take(3))
-                                .map((r) => Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 6, horizontal: 8),
-                                      child: Row(
-                                        textDirection: TextDirection.rtl,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.end,
-                                              children: [
-                                                Text(
-                                                  r.fullName.isNotEmpty
-                                                      ? r.fullName
-                                                      : r.id,
-                                                  textAlign: TextAlign.right,
-                                                  style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w700),
+                                .map(
+                                  (r) => Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                      horizontal: 8,
+                                    ),
+                                    child: Row(
+                                      textDirection: TextDirection.rtl,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                r.fullName.isNotEmpty
+                                                    ? r.fullName
+                                                    : r.id,
+                                                textAlign: TextAlign.right,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
                                                 ),
-                                                const SizedBox(height: 2),
-                                                Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    if (r.phone.isNotEmpty)
-                                                      Text(
-                                                        r.phone,
-                                                        style: TextStyle(
-                                                          color:
-                                                              AppColors.textMuted,
-                                                          fontSize: 12,
-                                                        ),
-                                                      ),
-                                                    if (r.phone.isNotEmpty)
-                                                      const SizedBox(width: 8),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (r.phone.isNotEmpty)
                                                     Text(
-                                                      _formatReadAt(r.readAt),
+                                                      r.phone,
                                                       style: TextStyle(
-                                                        color: AppColors.textMuted,
+                                                        color:
+                                                            AppColors.textMuted,
                                                         fontSize: 12,
                                                       ),
                                                     ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
+                                                  if (r.phone.isNotEmpty)
+                                                    const SizedBox(width: 8),
+                                                  Text(
+                                                    _formatReadAt(r.readAt),
+                                                    style: TextStyle(
+                                                      color:
+                                                          AppColors.textMuted,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                    ))
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
                                 .toList(),
                             if (_readers.length > 3)
                               Align(
@@ -4317,7 +4421,7 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
                   color: Colors.redAccent.withValues(alpha: .25),
                 ),
               ),
-                child: IconButton(
+              child: IconButton(
                 tooltip: 'حذف الإشعار',
                 onPressed: widget.onDelete,
                 icon: const Icon(
