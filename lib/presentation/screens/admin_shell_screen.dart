@@ -32,6 +32,23 @@ ImageProvider<Object>? _courseImageProvider(String imageDataUrl) {
   if (imageDataUrl.isEmpty) {
     return null;
   }
+
+  String _formatReadAt(String readAt) {
+    if (readAt.isEmpty) return '';
+    try {
+      final dt = DateTime.tryParse(readAt);
+      if (dt == null) return readAt;
+      final local = dt.toLocal();
+      final y = local.year.toString().padLeft(4, '0');
+      final m = local.month.toString().padLeft(2, '0');
+      final d = local.day.toString().padLeft(2, '0');
+      final hh = local.hour.toString().padLeft(2, '0');
+      final mm = local.minute.toString().padLeft(2, '0');
+      return '$d/$m/$y $hh:$mm';
+    } catch (_) {
+      return readAt;
+    }
+  }
   if (imageDataUrl.startsWith('data:')) {
     try {
       final data = Uri.parse(imageDataUrl).data;
@@ -4038,7 +4055,8 @@ class _AdminNotificationCard extends StatefulWidget {
 class _AdminNotificationCardState extends State<_AdminNotificationCard> {
   final AdminApiService _service = AdminApiService();
   bool _loadingReaders = false;
-  List<Map<String, dynamic>> _readers = [];
+  List<NotificationReader> _readers = [];
+  bool _expanded = false;
 
   @override
   void initState() {
@@ -4054,7 +4072,10 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
         widget.notification.id,
       );
       if (!mounted) return;
-      setState(() => _readers = readers);
+      setState(() {
+        _readers = readers;
+        _expanded = false;
+      });
     } catch (_) {
       // ignore errors silently; UI will show empty state
     } finally {
@@ -4189,16 +4210,16 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
                                           child:
                                               CircularProgressIndicator(strokeWidth: 2),
                                         )
-                                      : Text(
-                                          _readers.isEmpty
-                                              ? 'لم يقرأه أي طالب بعد'
-                                              : '${_readers.length} قرأ/قرأت',
-                                          textAlign: TextAlign.right,
-                                          style: TextStyle(
-                                            color: AppColors.textMuted,
-                                            fontSize: 12,
-                                          ),
-                                        ),
+                                            : Text(
+                                                _readers.isEmpty
+                                                    ? 'لم يقرأه أي طالب بعد'
+                                                    : '${_readers.length} قرأ/قرأت',
+                                                textAlign: TextAlign.right,
+                                                style: TextStyle(
+                                                  color: AppColors.textMuted,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
                                 ),
                               ],
                             ),
@@ -4209,17 +4230,74 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
                       if (!_loadingReaders && _readers.isNotEmpty)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
-                          children: _readers
-                              .map((r) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 4, horizontal: 8),
-                                    child: Text(
-                                      r['fullName']?.toString() ?? r['id'] ?? '',
-                                      textAlign: TextAlign.right,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ))
-                              .toList(),
+                          children: [
+                            ...(_expanded ? _readers : _readers.take(3))
+                                .map((r) => Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 6, horizontal: 8),
+                                      child: Row(
+                                        textDirection: TextDirection.rtl,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  r.fullName.isNotEmpty
+                                                      ? r.fullName
+                                                      : r.id,
+                                                  textAlign: TextAlign.right,
+                                                  style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w700),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    if (r.phone.isNotEmpty)
+                                                      Text(
+                                                        r.phone,
+                                                        style: TextStyle(
+                                                          color:
+                                                              AppColors.textMuted,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    if (r.phone.isNotEmpty)
+                                                      const SizedBox(width: 8),
+                                                    Text(
+                                                      _formatReadAt(r.readAt),
+                                                      style: TextStyle(
+                                                        color: AppColors.textMuted,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ))
+                                .toList(),
+                            if (_readers.length > 3)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () =>
+                                      setState(() => _expanded = !_expanded),
+                                  child: Text(
+                                    _expanded ? 'عرض أقل' : 'عرض المزيد',
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                     ],
                   ),
