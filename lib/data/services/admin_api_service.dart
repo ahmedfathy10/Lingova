@@ -239,6 +239,23 @@ class AdminApiService {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getNotificationReaders(
+    String token,
+    String notificationId,
+  ) async {
+    final response = await getJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/notifications/$notificationId/readers'),
+      headers: _headers(token),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode == 200) {
+      final readers = json['readers'] as List? ?? const [];
+      return readers.whereType<Map<String, dynamic>>().toList();
+    }
+
+    throw AuthApiException(_readMessage(json, response.statusCode));
+  }
+
   Future<List<CourseQuestion>> getQuestions(String token) async {
     final response = await getJson(
       Uri.parse('${ApiConfig.baseUrl}/api/admin/questions'),

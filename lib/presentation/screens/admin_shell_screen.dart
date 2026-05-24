@@ -3942,6 +3942,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                 (notification) => _AdminNotificationCard(
                   notification: notification,
                   onDelete: () => _deleteNotification(notification),
+                  token: widget.session.token,
                 ),
               ),
           ],
@@ -4019,14 +4020,47 @@ class _NotificationStatCard extends StatelessWidget {
   }
 }
 
-class _AdminNotificationCard extends StatelessWidget {
+class _AdminNotificationCard extends StatefulWidget {
   final AdminAppNotification notification;
   final VoidCallback onDelete;
+  final String token;
 
   const _AdminNotificationCard({
     required this.notification,
     required this.onDelete,
+    required this.token,
   });
+
+  @override
+  State<_AdminNotificationCard> createState() => _AdminNotificationCardState();
+}
+
+class _AdminNotificationCardState extends State<_AdminNotificationCard> {
+  final AdminApiService _service = AdminApiService();
+  bool _loadingReaders = false;
+  List<Map<String, dynamic>> _readers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchReaders();
+  }
+
+  Future<void> _fetchReaders() async {
+    setState(() => _loadingReaders = true);
+    try {
+      final readers = await _service.getNotificationReaders(
+        widget.token,
+        widget.notification.id,
+      );
+      if (!mounted) return;
+      setState(() => _readers = readers);
+    } catch (_) {
+      // ignore errors silently; UI will show empty state
+    } finally {
+      if (mounted) setState(() => _loadingReaders = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4059,13 +4093,13 @@ class _AdminNotificationCard extends StatelessWidget {
                   textDirection: TextDirection.rtl,
                   children: [
                     _StatusPill(
-                      text: _typeLabel(notification.type),
+                      text: _typeLabel(widget.notification.type),
                       color: AppColors.orange,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        notification.title,
+                        widget.notification.title,
                         textAlign: TextAlign.right,
                         style: const TextStyle(
                           fontSize: 19,
@@ -4079,7 +4113,7 @@ class _AdminNotificationCard extends StatelessWidget {
                 const SizedBox(height: 10),
 
                 Text(
-                  notification.body,
+                  widget.notification.body,
                   textAlign: TextAlign.right,
                   style: const TextStyle(height: 1.55, fontSize: 15),
                 ),
@@ -4093,13 +4127,13 @@ class _AdminNotificationCard extends StatelessWidget {
                   children: [
                     _NotificationMeta(
                       icon: Icons.schedule_rounded,
-                      text: notification.createdAt.isEmpty
+                      text: widget.notification.createdAt.isEmpty
                           ? 'وقت الإرسال غير متاح'
-                          : notification.createdAt,
+                          : widget.notification.createdAt,
                     ),
                     _NotificationMeta(
                       icon: Icons.person_rounded,
-                      text: 'أرسل بواسطة ${notification.createdBy}',
+                      text: 'أرسل بواسطة ${widget.notification.createdBy}',
                     ),
                   ],
                 ),
@@ -4115,45 +4149,78 @@ class _AdminNotificationCard extends StatelessWidget {
                       color: Colors.white.withValues(alpha: .06),
                     ),
                   ),
-                  child: Row(
-                    textDirection: TextDirection.rtl,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: .12),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.mark_email_read_rounded,
-                          color: Colors.green,
-                          size: 20,
-                        ),
+                      Row(
+                        textDirection: TextDirection.rtl,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: .12),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.mark_email_read_rounded,
+                              color: Colors.green,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text(
+                                  'القراء',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _loadingReaders
+                                      ? const SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child:
+                                              CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : Text(
+                                          _readers.isEmpty
+                                              ? 'لم يقرأه أي طالب بعد'
+                                              : '${_readers.length} قرأ/قرأت',
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
+                      const SizedBox(height: 12),
+                      if (!_loadingReaders && _readers.isNotEmpty)
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text(
-                              'القراء',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'يتم عرض من قرأ الرسالة بعد ربط readers endpoint.',
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                          children: _readers
+                              .map((r) => Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 4, horizontal: 8),
+                                    child: Text(
+                                      r['fullName']?.toString() ?? r['id'] ?? '',
+                                      textAlign: TextAlign.right,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ))
+                              .toList(),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -4172,9 +4239,9 @@ class _AdminNotificationCard extends StatelessWidget {
                   color: Colors.redAccent.withValues(alpha: .25),
                 ),
               ),
-              child: IconButton(
+                child: IconButton(
                 tooltip: 'حذف الإشعار',
-                onPressed: onDelete,
+                onPressed: widget.onDelete,
                 icon: const Icon(
                   Icons.delete_outline_rounded,
                   color: Colors.redAccent,

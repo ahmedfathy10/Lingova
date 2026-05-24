@@ -2320,16 +2320,19 @@ async function listNotificationReaders(request, response, notificationId) {
 
     const matched = (reads || []).filter((r) => String(r.notificationId || r.notification_id || '') === String(notificationId));
 
-    const readers = matched.map((r) => {
-      const uid = String(r.userId || r.user_id || '');
-      const user = users.find((u) => String(u.id || '') === uid) || {};
-      return {
-        id: uid,
-        fullName: user.fullName || user.userName || '',
-        phone: user.phone || '',
-        readAt: r.readAt || r.read_at || '',
-      };
-    });
+    const readers = matched
+      .map((r) => {
+        const uid = String(r.userId || r.user_id || '');
+        const user = users.find((u) => String(u.id || '') === uid) || {};
+        return {
+          id: uid,
+          fullName:
+            user.fullName || user.full_name || user.userName || user.user_name || user.name || '',
+          phone: user.phone || user.userPhone || user.user_phone || '',
+          readAt: r.readAt || r.read_at || r.readAt || r.read_at || '',
+        };
+      })
+      .sort((a, b) => String(b.readAt || '').localeCompare(String(a.readAt || '')));
 
     sendJson(response, 200, { readers });
   } catch (err) {
