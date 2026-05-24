@@ -11,17 +11,24 @@ try {
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
 const bundledDataDir = path.join(__dirname, 'data');
-const railwayDataDir =
+const isRailway =
   process.env.RAILWAY_ENVIRONMENT ||
   process.env.RAILWAY_PROJECT_ID ||
-  process.env.RAILWAY_SERVICE_ID
-    ? '/data'
-    : '';
+  process.env.RAILWAY_SERVICE_ID;
+const localDataDir = path.join(
+  process.env.LOCALAPPDATA ||
+    process.env.APPDATA ||
+    process.env.XDG_DATA_HOME ||
+    path.join(process.env.HOME || process.cwd(), '.local', 'share'),
+  'Lingova',
+  'backend-data'
+);
+const railwayDataDir = isRailway ? '/data' : '';
 const dataDir =
   process.env.LINGOVA_DATA_DIR ||
   process.env.RAILWAY_VOLUME_MOUNT_PATH ||
   railwayDataDir ||
-  bundledDataDir;
+  localDataDir;
 const usersFile = path.join(dataDir, 'users.json');
 const coursesFile = path.join(dataDir, 'courses.json');
 const booksFile = path.join(dataDir, 'books.json');
@@ -38,6 +45,7 @@ const appSessionsFile = path.join(dataDir, 'app_sessions.json');
 const communityPostsFile = path.join(dataDir, 'community_posts.json');
 const vocabularyWordsFile = path.join(dataDir, 'vocabulary_words.json');
 const audioResourcesFile = path.join(dataDir, 'audio_resources.json');
+const appSettingsFile = path.join(dataDir, 'app_settings.json');
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@lingova.com';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const adminSessions = new Map();
@@ -45,8 +53,19 @@ const appDownloadUrl = process.env.APP_DOWNLOAD_URL || 'https://example.com/down
 const adminPanelUrl = process.env.ADMIN_PANEL_URL || 'https://example.com/admin-panel';
 const availableCoursesCount = 8;
 let firebaseMessaging = undefined;
+const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_KEY ||
+  '';
+const useSupabase = Boolean(supabaseUrl && supabaseKey);
 
 async function ensureStore() {
+  if (useSupabase) {
+    return;
+  }
+
   await fs.mkdir(dataDir, { recursive: true });
   await ensureJsonFile(usersFile);
   await ensureJsonFile(coursesFile);
@@ -64,6 +83,7 @@ async function ensureStore() {
   await ensureJsonFile(communityPostsFile);
   await ensureJsonFile(vocabularyWordsFile);
   await ensureJsonFile(audioResourcesFile);
+  await ensureJsonFile(appSettingsFile);
 }
 
 async function ensureJsonFile(file) {
@@ -84,14 +104,189 @@ async function ensureJsonFile(file) {
   await fs.writeFile(file, '[]\n', 'utf8');
 }
 
-async function readUsers() {
+function collectionNameForFile(file) {
+  return path.basename(file, '.json');
+}
+
+async function supabaseRequest(pathname, { method = 'GET', body } = {}) {
+  if (typeof fetch !== 'function') {
+    throw new Error('Supabase storage requires Node.js 18 or newer.');
+  }
+
+  const response = await fetch(`${supabaseUrl}${pathname}`, {
+    method,
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `Supabase request failed (${response.status}): ${text || response.statusText}`
+    );
+  }
+
+  return text ? JSON.parse(text) : null;
+}
+
+const defaultRegistrationForm = {
+  fields: [
+    { key: 'fullName', label: 'الاسم بالكامل', type: 'text', required: true, enabled: true, isCore: true, icon: 'person', options: [] },
+    { key: 'phone', label: 'رقم الهاتف', type: 'phone', required: true, enabled: true, isCore: true, icon: 'phone', options: [] },
+    { key: 'password', label: 'كلمة المرور', type: 'password', required: true, enabled: true, isCore: true, icon: 'lock', options: [] },
+    { key: 'confirmPassword', label: 'تأكيد كلمة المرور', type: 'password', required: true, enabled: true, isCore: true, icon: 'verified', options: [] },
+    { key: 'address', label: 'المحافظة', type: 'dropdown', required: true, enabled: true, isCore: true, icon: 'location', options: ['القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'البحر الأحمر', 'البحيرة', 'الفيوم', 'الغربية', 'الإسماعيلية', 'المنوفية', 'المنيا', 'القليوبية', 'الوادي الجديد', 'السويس', 'أسوان', 'أسيوط', 'بني سويف', 'بورسعيد', 'دمياط', 'الشرقية', 'جنوب سيناء', 'كفر الشيخ', 'مطروح', 'الأقصر', 'قنا', 'شمال سيناء', 'سوهاج'] },
+    { key: 'job', label: 'الوظيفة', type: 'dropdown', required: true, enabled: true, isCore: true, icon: 'work', options: ['طالب', 'معلم', 'طبيب', 'صيدلي', 'مهندس', 'محاسب', 'محامي', 'مصمم جرافيك', 'مبرمج', 'مصمم واجهات', 'مسوق رقمي', 'مندوب مبيعات', 'خدمة عملاء', 'موظف إداري', 'مدير مشروع', 'مدير موارد بشرية', 'صاحب عمل', 'رائد أعمال', 'مترجم', 'كاتب محتوى', 'صحفي', 'باحث', 'عامل حر', 'فني', 'سائق', 'ممرض', 'مدرب', 'مصمم أزياء', 'ربة منزل', 'أخرى'] },
+    { key: 'language', label: 'اللغة المهتم بها', type: 'dropdown', required: true, enabled: true, isCore: true, icon: 'translate', options: ['الإنجليزية', 'الألمانية'] },
+    { key: 'learningReason', label: 'سبب تعلم اللغة', type: 'dropdown', required: true, enabled: true, isCore: true, icon: 'flag', options: ['السفر', 'الدراسة', 'الشغل', 'تعليم الأولاد', 'سبب أخر'] },
+    { key: 'referralReason', label: 'لماذا اخترتنا؟', type: 'text', required: true, enabled: true, isCore: true, icon: 'favorite', options: [] },
+  ],
+};
+
+const coreRegistrationKeys = new Set([
+  'fullName',
+  'phone',
+  'password',
+  'confirmPassword',
+  'address',
+  'job',
+  'language',
+  'learningReason',
+  'referralReason',
+]);
+
+const requiredCoreRegistrationKeys = new Set(['fullName', 'phone', 'password']);
+
+function normalizeRegistrationFormConfig(value) {
+  const sourceFields = Array.isArray(value?.fields)
+    ? value.fields
+    : defaultRegistrationForm.fields;
+  const fields = sourceFields
+    .map((field, index) => {
+      const key = String(field?.key || '').trim() || `custom_${index + 1}`;
+      const type = ['text', 'phone', 'password', 'dropdown', 'multiline'].includes(field?.type)
+        ? field.type
+        : 'text';
+      const isCore = coreRegistrationKeys.has(key) || field?.isCore === true;
+      const options = Array.isArray(field?.options)
+        ? field.options.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      return {
+        key,
+        label: String(field?.label || key).trim(),
+        type,
+        required: requiredCoreRegistrationKeys.has(key) ? true : field?.required !== false,
+        enabled: requiredCoreRegistrationKeys.has(key) ? true : field?.enabled !== false,
+        isCore,
+        icon: String(field?.icon || 'text').trim(),
+        options,
+      };
+    })
+    .filter((field) => field.key && field.label);
+
+  for (const defaultField of defaultRegistrationForm.fields) {
+    if (requiredCoreRegistrationKeys.has(defaultField.key) && !fields.some((field) => field.key === defaultField.key)) {
+      fields.unshift(defaultField);
+    }
+  }
+
+  return { fields: fields.length ? fields : defaultRegistrationForm.fields };
+}
+
+async function readAppSetting(key, fallback) {
+  if (useSupabase) {
+    const rows = await supabaseRequest(`/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}&select=value`);
+    return rows && rows[0] ? rows[0].value : fallback;
+  }
+
   await ensureStore();
-  const content = await fs.readFile(usersFile, 'utf8');
+  const settings = await readCollection(appSettingsFile);
+  const row = settings.find((item) => item.key === key);
+  return row?.value ?? fallback;
+}
+
+async function writeAppSetting(key, value, description = '') {
+  if (useSupabase) {
+    const existing = await supabaseRequest(`/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}&select=key`);
+    if (existing && existing.length) {
+      await supabaseRequest(`/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}`, {
+        method: 'PATCH',
+        body: { value, description, updated_at: new Date().toISOString() },
+      });
+    } else {
+      await supabaseRequest('/rest/v1/app_settings', {
+        method: 'POST',
+        body: { key, value, description },
+      });
+    }
+    return;
+  }
+
+  const settings = await readCollection(appSettingsFile);
+  const existing = settings.find((item) => item.key === key);
+  if (existing) {
+    existing.value = value;
+    existing.description = description;
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    settings.push({
+      key,
+      value,
+      description,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  await writeCollection(appSettingsFile, settings);
+}
+
+async function readRegistrationFormConfig() {
+  const value = await readAppSetting('registration_form', defaultRegistrationForm);
+  return normalizeRegistrationFormConfig(value);
+}
+
+async function readCollection(file) {
+  if (useSupabase) {
+    const rows = await supabaseRequest('/rest/v1/rpc/lingova_read_collection', {
+      method: 'POST',
+      body: {
+        collection_name: collectionNameForFile(file),
+      },
+    });
+    return (rows || []).map((row) => row.data).filter(Boolean);
+  }
+
+  await ensureStore();
+  const content = await fs.readFile(file, 'utf8');
   return JSON.parse(content || '[]');
 }
 
+async function writeCollection(file, records) {
+  if (useSupabase) {
+    await supabaseRequest('/rest/v1/rpc/lingova_replace_collection', {
+      method: 'POST',
+      body: {
+        p_collection: collectionNameForFile(file),
+        p_records: records,
+      },
+    });
+    return;
+  }
+
+  await fs.writeFile(file, `${JSON.stringify(records, null, 2)}\n`, 'utf8');
+}
+
+async function readUsers() {
+  return readCollection(usersFile);
+}
+
 async function writeUsers(users) {
-  await fs.writeFile(usersFile, `${JSON.stringify(users, null, 2)}\n`, 'utf8');
+  await writeCollection(usersFile, users);
 }
 
 function normalizePhone(phone) {
@@ -105,65 +300,43 @@ async function findUserByPhone(phone) {
 }
 
 async function readCourseParts() {
-  await ensureStore();
-  const content = await fs.readFile(coursesFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(coursesFile);
 }
 
 async function writeCourseParts(parts) {
-  await fs.writeFile(coursesFile, `${JSON.stringify(parts, null, 2)}\n`, 'utf8');
+  await writeCollection(coursesFile, parts);
 }
 
 async function readBooks() {
-  await ensureStore();
-  const content = await fs.readFile(booksFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(booksFile);
 }
 
 async function writeBooks(books) {
-  await fs.writeFile(booksFile, `${JSON.stringify(books, null, 2)}\n`, 'utf8');
+  await writeCollection(booksFile, books);
 }
 
 async function readSubscriptions() {
-  await ensureStore();
-  const content = await fs.readFile(subscriptionsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(subscriptionsFile);
 }
 
 async function writeSubscriptions(subscriptions) {
-  await fs.writeFile(
-    subscriptionsFile,
-    `${JSON.stringify(subscriptions, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(subscriptionsFile, subscriptions);
 }
 
 async function readNotifications() {
-  await ensureStore();
-  const content = await fs.readFile(notificationsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(notificationsFile);
 }
 
 async function writeNotifications(notifications) {
-  await fs.writeFile(
-    notificationsFile,
-    `${JSON.stringify(notifications, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(notificationsFile, notifications);
 }
 
 async function readSupportMessages() {
-  await ensureStore();
-  const content = await fs.readFile(supportMessagesFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(supportMessagesFile);
 }
 
 async function writeSupportMessages(messages) {
-  await fs.writeFile(
-    supportMessagesFile,
-    `${JSON.stringify(messages, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(supportMessagesFile, messages);
 }
 
 function publicSupportMessage(message) {
@@ -185,153 +358,91 @@ function publicSupportMessage(message) {
 }
 
 async function readDeviceTokens() {
-  await ensureStore();
-  const content = await fs.readFile(deviceTokensFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(deviceTokensFile);
 }
 
 async function writeDeviceTokens(tokens) {
-  await fs.writeFile(
-    deviceTokensFile,
-    `${JSON.stringify(tokens, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(deviceTokensFile, tokens);
 }
 
 async function readQuestions() {
-  await ensureStore();
-  const content = await fs.readFile(questionsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(questionsFile);
 }
 
 async function writeQuestions(questions) {
-  await fs.writeFile(
-    questionsFile,
-    `${JSON.stringify(questions, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(questionsFile, questions);
 }
 
 async function readWatchProgress() {
-  await ensureStore();
-  const content = await fs.readFile(watchProgressFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(watchProgressFile);
 }
 
 async function writeWatchProgress(records) {
-  await fs.writeFile(
-    watchProgressFile,
-    `${JSON.stringify(records, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(watchProgressFile, records);
 }
 
 async function readExams() {
-  await ensureStore();
-  const content = await fs.readFile(examsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(examsFile);
 }
 
 async function writeExams(exams) {
-  await fs.writeFile(examsFile, `${JSON.stringify(exams, null, 2)}\n`, 'utf8');
+  await writeCollection(examsFile, exams);
 }
 
 async function readExamResults() {
-  await ensureStore();
-  const content = await fs.readFile(examResultsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(examResultsFile);
 }
 
 async function writeExamResults(results) {
-  await fs.writeFile(
-    examResultsFile,
-    `${JSON.stringify(results, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(examResultsFile, results);
 }
 
 async function readSupportMessages() {
-  await ensureStore();
-  const content = await fs.readFile(supportMessagesFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(supportMessagesFile);
 }
 
 async function writeSupportMessages(messages) {
-  await fs.writeFile(
-    supportMessagesFile,
-    `${JSON.stringify(messages, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(supportMessagesFile, messages);
 }
 
 async function readCommunityPosts() {
-  await ensureStore();
-  const content = await fs.readFile(communityPostsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(communityPostsFile);
 }
 
 async function writeCommunityPosts(posts) {
-  await fs.writeFile(
-    communityPostsFile,
-    `${JSON.stringify(posts, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(communityPostsFile, posts);
 }
 
 async function readVocabularyWords() {
-  await ensureStore();
-  const content = await fs.readFile(vocabularyWordsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(vocabularyWordsFile);
 }
 
 async function writeVocabularyWords(words) {
-  await fs.writeFile(
-    vocabularyWordsFile,
-    `${JSON.stringify(words, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(vocabularyWordsFile, words);
 }
 
 async function readAudioResources() {
-  await ensureStore();
-  const content = await fs.readFile(audioResourcesFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(audioResourcesFile);
 }
 
 async function writeAudioResources(resources) {
-  await fs.writeFile(
-    audioResourcesFile,
-    `${JSON.stringify(resources, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(audioResourcesFile, resources);
 }
 
 async function readActivityLogs() {
-  await ensureStore();
-  const content = await fs.readFile(activityLogsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(activityLogsFile);
 }
 
 async function writeActivityLogs(logs) {
-  await fs.writeFile(
-    activityLogsFile,
-    `${JSON.stringify(logs, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(activityLogsFile, logs);
 }
 
 async function readAppSessions() {
-  await ensureStore();
-  const content = await fs.readFile(appSessionsFile, 'utf8');
-  return JSON.parse(content || '[]');
+  return readCollection(appSessionsFile);
 }
 
 async function writeAppSessions(sessions) {
-  await fs.writeFile(
-    appSessionsFile,
-    `${JSON.stringify(sessions, null, 2)}\n`,
-    'utf8'
-  );
+  await writeCollection(appSessionsFile, sessions);
 }
 
 function hashPassword(password) {
@@ -383,21 +494,22 @@ function readBody(request) {
   });
 }
 
-function validateRegistration(payload) {
-  const requiredFields = [
-    'fullName',
-    'phone',
-    'password',
-    'address',
-    'job',
-    'language',
-    'learningReason',
-    'referralReason',
-  ];
-
-  for (const field of requiredFields) {
-    if (!String(payload[field] || '').trim()) {
+function validateRegistration(payload, formConfig = defaultRegistrationForm) {
+  const fields = normalizeRegistrationFormConfig(formConfig).fields;
+  for (const field of fields) {
+    if (!field.enabled || field.key === 'confirmPassword') {
+      continue;
+    }
+    if (field.required && !String(payload[field.key] || '').trim()) {
       return 'Please fill in all fields.';
+    }
+    if (
+      field.type === 'dropdown' &&
+      field.options.length &&
+      String(payload[field.key] || '').trim() &&
+      !field.options.includes(String(payload[field.key]).trim())
+    ) {
+      return 'Please select a valid option.';
     }
   }
 
@@ -423,7 +535,7 @@ function validateUserPayload(payload, { requirePassword }) {
     language: payload.language,
     learningReason: payload.learningReason,
     referralReason: payload.referralReason,
-  });
+  }, defaultRegistrationForm);
 
   if (validationError) {
     return validationError;
@@ -957,18 +1069,25 @@ function courseKeyFor(language, courseTitle) {
 }
 
 function buildUserFromPayload(payload, { createdBy = 'App' } = {}) {
+  const extraFields = Object.fromEntries(
+    Object.entries(payload)
+      .filter(([key]) => !coreRegistrationKeys.has(key) && key !== 'role' && key !== 'status')
+      .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value])
+  );
+
   return {
     id: crypto.randomUUID(),
-    fullName: String(payload.fullName).trim(),
-    phone: String(payload.phone).replace(/\s/g, ''),
-    passwordHash: hashPassword(String(payload.password)),
-    address: String(payload.address).trim(),
-    job: String(payload.job).trim(),
-    language: String(payload.language).trim(),
-    learningReason: String(payload.learningReason).trim(),
-    referralReason: String(payload.referralReason).trim(),
+    fullName: String(payload.fullName || '').trim(),
+    phone: String(payload.phone || '').replace(/\s/g, ''),
+    passwordHash: hashPassword(String(payload.password || '')),
+    address: String(payload.address || '').trim(),
+    job: String(payload.job || '').trim(),
+    language: String(payload.language || '').trim(),
+    learningReason: String(payload.learningReason || '').trim(),
+    referralReason: String(payload.referralReason || '').trim(),
     role: normalizeRole(payload.role),
     status: 'active',
+    extraFields,
     createdAt: new Date().toISOString(),
     createdBy,
   };
@@ -986,6 +1105,7 @@ function publicUser(user) {
     referralReason: user.referralReason,
     status: user.status || 'active',
     role: user.role || 'student',
+    extraFields: user.extraFields && typeof user.extraFields === 'object' ? user.extraFields : {},
     createdAt: user.createdAt,
     createdBy: user.createdBy || 'App',
     enrollments: Array.isArray(user.enrollments) ? user.enrollments : [],
@@ -1025,10 +1145,52 @@ function requireAdmin(request, response) {
   return null;
 }
 
+async function getRegistrationForm(request, response) {
+  try {
+    const form = await readRegistrationFormConfig();
+    sendJson(response, 200, { form });
+  } catch {
+    sendJson(response, 200, { form: defaultRegistrationForm });
+  }
+}
+
+async function getAdminRegistrationForm(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const form = await readRegistrationFormConfig();
+    sendJson(response, 200, { form });
+  } catch {
+    sendJson(response, 500, { message: 'Unable to load registration form settings.' });
+  }
+}
+
+async function updateAdminRegistrationForm(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await readBody(request));
+    const form = normalizeRegistrationFormConfig(payload);
+    await writeAppSetting(
+      'registration_form',
+      form,
+      'Dynamic registration form configuration'
+    );
+    sendJson(response, 200, { form });
+  } catch {
+    sendJson(response, 400, { message: 'Unable to save registration form settings.' });
+  }
+}
+
 async function register(request, response) {
   try {
     const payload = JSON.parse(await readBody(request));
-    const validationError = validateRegistration(payload);
+    const formConfig = await readRegistrationFormConfig();
+    const validationError = validateRegistration(payload, formConfig);
 
     if (validationError) {
       sendJson(response, 400, { message: validationError });
@@ -4123,6 +4285,11 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/registration-form') {
+    await getRegistrationForm(request, response);
+    return;
+  }
+
   if (request.method === 'POST' && url.pathname === '/api/register') {
     await register(request, response);
     return;
@@ -4142,6 +4309,18 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && url.pathname === '/api/admin/login') {
     await adminLogin(request, response);
     return;
+  }
+
+  if (url.pathname === '/api/admin/registration-form') {
+    if (request.method === 'GET') {
+      await getAdminRegistrationForm(request, response);
+      return;
+    }
+
+    if (request.method === 'POST') {
+      await updateAdminRegistrationForm(request, response);
+      return;
+    }
   }
 
   if (request.method === 'GET' && url.pathname === '/api/courses') {
@@ -4620,10 +4799,24 @@ sendJson(response, 404, { message: 'Route not found.' });
 
 server.listen(port, host, () => {
   console.log(`Lingova backend is running on http://${host}:${port}`);
-  console.log(`Lingova data directory: ${dataDir}`);
+  console.log(
+    useSupabase
+      ? 'Lingova storage: Supabase PostgreSQL'
+      : `Lingova data directory: ${dataDir}`
+  );
   if (dataDir === bundledDataDir) {
     console.log(
       'Warning: using bundled backend/data. Configure LINGOVA_DATA_DIR or a Railway volume to keep chats, exam results, certificates, and community messages after deploys.'
+    );
+  }
+  if (
+    !useSupabase &&
+    isRailway &&
+    !process.env.LINGOVA_DATA_DIR &&
+    !process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ) {
+    console.log(
+      'Warning: Railway is running without a configured persistent volume. Data written to /data may be lost after a redeploy. Add a Railway volume mounted at /data or set LINGOVA_DATA_DIR to the mounted path.'
     );
   }
   console.log(`Admin login: ${adminEmail} / ${adminPassword}`);
