@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "lingova-2c60c"
+  },
+  "targets": {
+    "lingova-2c60c": {
+      "hosting": {
+        "user": [
+          "lingova-2c60c"
+        ],
+        "admin": [
+          "lingova-dashboard"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

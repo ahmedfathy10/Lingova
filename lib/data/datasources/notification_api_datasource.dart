@@ -18,11 +18,23 @@ class NotificationApiDataSource {
 
   NotificationApiDataSource({this.user});
 
-  Future<List<AppNotification>> getNotifications() async {
+  Future<List<AppNotification>> getNotifications({
+    bool unreadOnly = false,
+  }) async {
     await _loadReadIds();
     final notificationStartAt = await _notificationStartAt();
+    final query = <String, String>{};
+    final currentUser = user;
+    if (currentUser != null && currentUser.id.isNotEmpty) {
+      query['userId'] = currentUser.id;
+    }
+    if (unreadOnly) {
+      query['unreadOnly'] = 'true';
+    }
     final response = await getJson(
-      Uri.parse('${ApiConfig.baseUrl}/api/notifications'),
+      Uri.parse(
+        '${ApiConfig.baseUrl}/api/notifications',
+      ).replace(queryParameters: query.isEmpty ? null : query),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('تعذر تحميل التنبيهات');
@@ -47,12 +59,24 @@ class NotificationApiDataSource {
 
   Future<void> markAsRead(String id) async {
     await _loadReadIds();
+    final currentUser = user;
+    if (currentUser != null && currentUser.id.isNotEmpty) {
+      try {
+        await postJson(
+          Uri.parse('${ApiConfig.baseUrl}/api/notifications/$id/read'),
+          {'userId': currentUser.id},
+        );
+      } catch (_) {}
+    }
     _readIds.add(id);
     await _saveReadIds();
   }
 
   Future<void> markAllAsRead(Iterable<String> ids) async {
     await _loadReadIds();
+    for (final id in ids) {
+      await markAsRead(id);
+    }
     _readIds.addAll(ids);
     await _saveReadIds();
   }
@@ -92,7 +116,9 @@ class NotificationApiDataSource {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString('$_notificationStartPrefix${currentUser.id}');
+    final stored = prefs.getString(
+      '$_notificationStartPrefix${currentUser.id}',
+    );
     return DateTime.tryParse(stored ?? '');
   }
 
@@ -124,7 +150,7 @@ class NotificationApiDataSource {
       timeLabel: _buildTimeLabel(createdAt),
       icon: _iconForType(json['type']?.toString() ?? 'general'),
       createdAt: createdAt,
-      isRead: _readIds.contains(id),
+      isRead: json['isRead'] == true || _readIds.contains(id),
     );
   }
 

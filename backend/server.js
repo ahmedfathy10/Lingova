@@ -34,6 +34,7 @@ const coursesFile = path.join(dataDir, 'courses.json');
 const booksFile = path.join(dataDir, 'books.json');
 const subscriptionsFile = path.join(dataDir, 'subscriptions.json');
 const notificationsFile = path.join(dataDir, 'notifications.json');
+const notificationReadsFile = path.join(dataDir, 'notification_reads.json');
 const supportMessagesFile = path.join(dataDir, 'support_messages.json');
 const deviceTokensFile = path.join(dataDir, 'device_tokens.json');
 const questionsFile = path.join(dataDir, 'questions.json');
@@ -72,6 +73,7 @@ async function ensureStore() {
   await ensureJsonFile(booksFile);
   await ensureJsonFile(subscriptionsFile);
   await ensureJsonFile(notificationsFile);
+  await ensureJsonFile(notificationReadsFile);
   await ensureJsonFile(deviceTokensFile);
   await ensureJsonFile(questionsFile);
   await ensureJsonFile(watchProgressFile);
@@ -329,6 +331,35 @@ async function readNotifications() {
 
 async function writeNotifications(notifications) {
   await writeCollection(notificationsFile, notifications);
+}
+
+async function readNotificationReads() {
+  if (useSupabase) {
+    return supabaseRequest('/rest/v1/notification_reads?select=notification_id,user_id,read_at');
+  }
+
+  return readCollection(notificationReadsFile);
+}
+
+async function writeNotificationReads(reads) {
+  if (useSupabase) {
+    await supabaseRequest('/rest/v1/notification_reads?notification_id=neq.__never__', {
+      method: 'DELETE',
+    });
+    if (reads.length) {
+      await supabaseRequest('/rest/v1/notification_reads', {
+        method: 'POST',
+        body: reads.map((item) => ({
+          notification_id: item.notificationId || item.notification_id,
+          user_id: item.userId || item.user_id,
+          read_at: item.readAt || item.read_at || new Date().toISOString(),
+        })),
+      });
+    }
+    return;
+  }
+
+  await writeCollection(notificationReadsFile, reads);
 }
 
 async function readSupportMessages() {
@@ -778,7 +809,13 @@ function publicSubscription(subscription) {
   };
 }
 
-function publicNotification(notification) {
+function publicNotification(notification, options = {}) {
+  const targetUserIds = Array.isArray(notification.targetUserIds)
+    ? notification.targetUserIds
+    : [];
+  const targetPhones = Array.isArray(notification.targetPhones)
+    ? notification.targetPhones
+    : [];
   return {
     id: notification.id,
     title: notification.title,
@@ -786,6 +823,10 @@ function publicNotification(notification) {
     type: notification.type || 'general',
     createdAt: notification.createdAt,
     createdBy: notification.createdBy || 'Admin',
+    targetMode: notification.targetMode || (targetUserIds.length || targetPhones.length ? 'specific' : 'all'),
+    targetUserIds,
+    targetPhones,
+    isRead: options.isRead === true,
   };
 }
 
@@ -1507,11 +1548,151 @@ async function listAdminBooks(request, response) {
   }
 }
 
-async function listNotifications(request, response) {
+function normalizeIdList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function normalizePhoneList(value) {
+  return normalizeIdList(value).map(normalizePhone).filter(Boolean);
+}
+
+function notificationTargetsUser(notification, userId) {
+  const targetMode = notification.targetMode || 'all';
+  const targetUserIds = normalizeIdList(notification.targetUserIds);
+  if (!userId || targetMode === 'all' || !targetUserIds.length) {
+    return true;
+  }
+  return targetUserIds.includes(userId);
+}
+
+async function resolveNotificationTargets(payload) {
+  const users = await readUsers();
+  const students = users.filter((user) => String(user.role || 'student') !== 'admin');
+  const targetMode = String(payload.targetMode || payload.target || 'all').trim();
+  if (targetMode !== 'specific') {
+    return {
+      targetMode: 'all',
+      targetUserIds: [],
+      targetPhones: [],
+      unmatchedPhones: [],
+      users: students,
+    };
+  }
+
+  const requestedIds = normalizeIdList(payload.targetUsers || payload.targetUserIds);
+  const requestedPhones = normalizePhoneList(payload.targetPhones || payload.phones);
+  const matchedUsers = new Map();
+
+  for (const user of students) {
+    if (requestedIds.includes(user.id)) {
+      matchedUsers.set(user.id, user);
+    }
+  }
+
+  const unmatchedPhones = [];
+  for (const phone of requestedPhones) {
+    const user = students.find((item) => normalizePhone(item.phone) === phone);
+    if (user) {
+      matchedUsers.set(user.id, user);
+    } else {
+      unmatchedPhones.push(phone);
+    }
+  }
+
+  return {
+    targetMode: 'specific',
+    targetUserIds: [...matchedUsers.keys()],
+    targetPhones: requestedPhones,
+    unmatchedPhones,
+    users: [...matchedUsers.values()],
+  };
+}
+
+async function readNotificationReadIds(userId) {
+  if (!userId) {
+    return new Set();
+  }
+
+  if (useSupabase) {
+    const rows = await supabaseRequest(
+      `/rest/v1/notification_reads?user_id=eq.${encodeURIComponent(userId)}&select=notification_id`
+    );
+    return new Set((rows || []).map((item) => item.notification_id).filter(Boolean));
+  }
+
+  const reads = await readNotificationReads();
+  return new Set(
+    reads
+      .filter((item) => String(item.userId || item.user_id || '') === userId)
+      .map((item) => item.notificationId || item.notification_id)
+      .filter(Boolean)
+  );
+}
+
+async function markNotificationReadForUser(notificationId, userId) {
+  const readAt = new Date().toISOString();
+  if (useSupabase) {
+    await supabaseRequest(
+      `/rest/v1/notification_reads?notification_id=eq.${encodeURIComponent(notificationId)}&user_id=eq.${encodeURIComponent(userId)}`,
+      { method: 'DELETE' }
+    );
+    await supabaseRequest('/rest/v1/notification_reads', {
+      method: 'POST',
+      body: {
+        notification_id: notificationId,
+        user_id: userId,
+        read_at: readAt,
+      },
+    });
+    return readAt;
+  }
+
+  const reads = await readNotificationReads();
+  const existing = reads.find(
+    (item) =>
+      String(item.notificationId || item.notification_id || '') === notificationId &&
+      String(item.userId || item.user_id || '') === userId
+  );
+  if (existing) {
+    existing.readAt = existing.readAt || existing.read_at || readAt;
+  } else {
+    reads.push({ notificationId, userId, readAt });
+  }
+  await writeNotificationReads(reads);
+  return readAt;
+}
+
+async function deleteNotificationReads(notificationId) {
+  if (useSupabase) {
+    await supabaseRequest(
+      `/rest/v1/notification_reads?notification_id=eq.${encodeURIComponent(notificationId)}`,
+      { method: 'DELETE' }
+    );
+    return;
+  }
+
+  const reads = await readNotificationReads();
+  await writeNotificationReads(
+    reads.filter((item) => String(item.notificationId || item.notification_id || '') !== notificationId)
+  );
+}
+
+async function listNotifications(request, response, url) {
   try {
+    const userId = String(url?.searchParams.get('userId') || '').trim();
+    const unreadOnly = String(url?.searchParams.get('unreadOnly') || '') === 'true';
     const notifications = await readNotifications();
+    const readIds = await readNotificationReadIds(userId);
+    const filtered = notifications
+      .filter((notification) => notificationTargetsUser(notification, userId))
+      .filter((notification) => !unreadOnly || !readIds.has(notification.id));
     sendJson(response, 200, {
-      notifications: notifications.map(publicNotification),
+      notifications: filtered.map((notification) =>
+        publicNotification(notification, { isRead: readIds.has(notification.id) })
+      ),
     });
   } catch {
     sendJson(response, 500, { message: 'تعذر تحميل التنبيهات.' });
@@ -1719,6 +1900,26 @@ async function sendPushNotificationToUser(userId, notification) {
   } catch {
     return { sent: false, reason: 'send_failed' };
   }
+}
+
+async function sendPushNotificationToUsers(userIds, notification) {
+  const uniqueUserIds = [...new Set(userIds.map((item) => String(item || '').trim()).filter(Boolean))];
+  if (!uniqueUserIds.length) {
+    return { sent: false, reason: 'no_target_users' };
+  }
+
+  const results = await Promise.all(
+    uniqueUserIds.map((userId) => sendPushNotificationToUser(userId, notification))
+  );
+  const successCount = results.reduce((total, item) => total + Number(item.successCount || 0), 0);
+  const failureCount = results.reduce((total, item) => total + Number(item.failureCount || 0), 0);
+  const sent = results.some((item) => item.sent === true);
+  return {
+    sent,
+    successCount,
+    failureCount,
+    reason: sent ? undefined : results[0]?.reason || 'send_failed',
+  };
 }
 
 async function sendPushNotificationToAdmins(notification) {
@@ -2006,7 +2207,7 @@ async function listAdminNotifications(request, response) {
     return;
   }
 
-  await listNotifications(request, response);
+  await listNotifications(request, response, new URL(request.url, `http://${request.headers.host || 'localhost'}`));
 }
 
 async function createNotification(request, response) {
@@ -2025,25 +2226,114 @@ async function createNotification(request, response) {
       return;
     }
 
+    const targets = await resolveNotificationTargets(payload);
+    if (targets.targetMode === 'specific' && !targets.targetUserIds.length) {
+      sendJson(response, 400, { message: 'Ù„Ù… ÙŠØªÙ… Ø§Ù„Ø¹Ø«ÙˆØ± Ø¹Ù„Ù‰ Ø·Ù„Ø§Ø¨ Ù…Ø·Ø§Ø¨Ù‚ÙŠÙ†.' });
+      return;
+    }
+
     const notifications = await readNotifications();
     const notification = {
       id: crypto.randomUUID(),
       title,
       body,
       type: normalizeNotificationType(payload.type),
+      targetMode: targets.targetMode,
+      targetUserIds: targets.targetUserIds,
+      targetPhones: targets.targetPhones,
+      unmatchedPhones: targets.unmatchedPhones,
       createdAt: new Date().toISOString(),
       createdBy: adminSession.name || 'Admin',
     };
 
     notifications.unshift(notification);
     await writeNotifications(notifications);
-    const push = await sendPushNotification(notification);
+    const push = targets.targetMode === 'specific'
+      ? await sendPushNotificationToUsers(targets.targetUserIds, notification)
+      : await sendPushNotification(notification);
     sendJson(response, 201, {
       notification: publicNotification(notification),
       push,
+      unmatchedPhones: targets.unmatchedPhones,
+      matchedCount: targets.targetMode === 'specific'
+        ? targets.targetUserIds.length
+        : targets.users.length,
     });
   } catch {
     sendJson(response, 500, { message: 'تعذر إرسال التنبيه.' });
+  }
+}
+
+async function deleteNotification(request, response, notificationId) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+
+  try {
+    const notifications = await readNotifications();
+    const nextNotifications = notifications.filter((item) => item.id !== notificationId);
+    if (nextNotifications.length === notifications.length) {
+      sendJson(response, 404, { message: 'التنبيه غير موجود.' });
+      return;
+    }
+
+    await writeNotifications(nextNotifications);
+    await deleteNotificationReads(notificationId);
+    sendJson(response, 200, { success: true });
+  } catch (err) {
+    sendJson(response, 500, { message: 'تعذر حذف التنبيه.' });
+  }
+}
+
+async function markNotificationRead(request, response, notificationId) {
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const userId = String(payload.userId || '').trim();
+    if (!userId) {
+      sendJson(response, 400, { message: 'بيانات الطالب غير مكتملة.' });
+      return;
+    }
+
+    const notifications = await readNotifications();
+    const notification = notifications.find((item) => item.id === notificationId);
+    if (!notification || !notificationTargetsUser(notification, userId)) {
+      sendJson(response, 404, { message: 'التنبيه غير موجود.' });
+      return;
+    }
+
+    await markNotificationReadForUser(notificationId, userId);
+    sendJson(response, 200, { success: true });
+  } catch (err) {
+    sendJson(response, 500, { message: 'تعذر تحديث حالة الإشعار.' });
+  }
+}
+
+async function listNotificationReaders(request, response, notificationId) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+
+  try {
+    const reads = await readNotificationReads();
+    const users = await readUsers();
+
+    const matched = (reads || []).filter((r) => String(r.notificationId || r.notification_id || '') === String(notificationId));
+
+    const readers = matched.map((r) => {
+      const uid = String(r.userId || r.user_id || '');
+      const user = users.find((u) => String(u.id || '') === uid) || {};
+      return {
+        id: uid,
+        fullName: user.fullName || user.userName || '',
+        phone: user.phone || '',
+        readAt: r.readAt || r.read_at || '',
+      };
+    });
+
+    sendJson(response, 200, { readers });
+  } catch (err) {
+    sendJson(response, 500, { message: 'تعذر تحميل قرّاء الإشعار.' });
   }
 }
 
@@ -4353,7 +4643,30 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/notifications') {
-    await listNotifications(request, response);
+    await listNotifications(request, response, url);
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/notifications') {
+    await createNotification(request, response);
+    return;
+  }
+
+  const notificationReadersMatch = url.pathname.match(/^\/api\/notifications\/([^/]+)\/readers$/);
+  if (notificationReadersMatch && request.method === 'GET') {
+    await listNotificationReaders(request, response, notificationReadersMatch[1]);
+    return;
+  }
+
+  const notificationReadMatch = url.pathname.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (notificationReadMatch && request.method === 'POST') {
+    await markNotificationRead(request, response, notificationReadMatch[1]);
+    return;
+  }
+
+  const notificationDeleteMatch = url.pathname.match(/^\/api\/notifications\/([^/]+)$/);
+  if (notificationDeleteMatch && request.method === 'DELETE') {
+    await deleteNotification(request, response, notificationDeleteMatch[1]);
     return;
   }
 
@@ -4536,6 +4849,18 @@ const server = http.createServer(async (request, response) => {
       await createNotification(request, response);
       return;
     }
+  }
+
+  const adminNotificationReadersMatch = url.pathname.match(/^\/api\/admin\/notifications\/([^/]+)\/readers$/);
+  if (adminNotificationReadersMatch && request.method === 'GET') {
+    await listNotificationReaders(request, response, adminNotificationReadersMatch[1]);
+    return;
+  }
+
+  const adminNotificationDeleteMatch = url.pathname.match(/^\/api\/admin\/notifications\/([^/]+)$/);
+  if (adminNotificationDeleteMatch && request.method === 'DELETE') {
+    await deleteNotification(request, response, adminNotificationDeleteMatch[1]);
+    return;
   }
 
   if (url.pathname === '/api/admin/users') {

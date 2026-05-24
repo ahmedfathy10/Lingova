@@ -176,6 +176,8 @@ begin
       ('progress', 'id'),
       ('progress', 'student_id'),
       ('notifications', 'id'),
+      ('notification_reads', 'notification_id'),
+      ('notification_reads', 'user_id'),
       ('chat_messages', 'id'),
       ('chat_messages', 'student_id'),
       ('student_questions', 'id'),
@@ -479,10 +481,22 @@ create table if not exists public.notifications (
   body text not null default '',
   notification_type text not null default 'general',
   created_by text not null default '',
+  target_mode text not null default 'all',
+  target_user_ids jsonb not null default '[]'::jsonb,
+  target_phones jsonb not null default '[]'::jsonb,
+  unmatched_phones jsonb not null default '[]'::jsonb,
   raw_payload jsonb not null default '{}'::jsonb,
   source_position integer not null default 0,
   created_at timestamptz,
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.notification_reads (
+  notification_id text not null,
+  user_id text not null,
+  read_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  primary key (notification_id, user_id)
 );
 
 create table if not exists public.chat_messages (
@@ -845,6 +859,10 @@ alter table public.notifications add column if not exists title text not null de
 alter table public.notifications add column if not exists body text not null default '';
 alter table public.notifications add column if not exists notification_type text not null default 'general';
 alter table public.notifications add column if not exists created_by text not null default '';
+alter table public.notifications add column if not exists target_mode text not null default 'all';
+alter table public.notifications add column if not exists target_user_ids jsonb not null default '[]'::jsonb;
+alter table public.notifications add column if not exists target_phones jsonb not null default '[]'::jsonb;
+alter table public.notifications add column if not exists unmatched_phones jsonb not null default '[]'::jsonb;
 alter table public.notifications add column if not exists raw_payload jsonb not null default '{}'::jsonb;
 alter table public.notifications add column if not exists source_position integer not null default 0;
 alter table public.notifications add column if not exists created_at timestamptz;
@@ -1174,6 +1192,7 @@ create index if not exists enrollments_student_course_idx on public.enrollments(
 create index if not exists payments_student_idx on public.payments(student_id, paid_at desc);
 create index if not exists progress_student_course_idx on public.progress(student_id, course_language, course_title);
 create index if not exists notifications_created_idx on public.notifications(created_at desc);
+create index if not exists notification_reads_user_idx on public.notification_reads(user_id, read_at desc);
 create index if not exists chat_messages_student_idx on public.chat_messages(student_id, created_at);
 create index if not exists student_questions_student_idx on public.student_questions(student_id, created_at);
 create index if not exists community_posts_created_idx on public.community_posts(created_at desc);
@@ -1562,8 +1581,8 @@ begin
   elsif p_collection = 'notifications' then
     delete from public.notifications
     where p_collection = 'notifications';
-    insert into public.notifications (id, title, body, notification_type, created_by, raw_payload, source_position, created_at)
-    select coalesce(nullif(item->>'id', ''), gen_random_uuid()::text), coalesce(item->>'title', ''), coalesce(item->>'body', ''), coalesce(nullif(item->>'type', ''), 'general'), coalesce(item->>'createdBy', ''), item, item_order::integer, public.safe_timestamptz(item->>'createdAt')
+    insert into public.notifications (id, title, body, notification_type, created_by, target_mode, target_user_ids, target_phones, unmatched_phones, raw_payload, source_position, created_at)
+    select coalesce(nullif(item->>'id', ''), gen_random_uuid()::text), coalesce(item->>'title', ''), coalesce(item->>'body', ''), coalesce(nullif(item->>'type', ''), 'general'), coalesce(item->>'createdBy', item->>'created_by', ''), coalesce(nullif(item->>'targetMode', ''), nullif(item->>'target_mode', ''), 'all'), case when jsonb_typeof(item->'targetUserIds') = 'array' then item->'targetUserIds' when jsonb_typeof(item->'target_user_ids') = 'array' then item->'target_user_ids' else '[]'::jsonb end, case when jsonb_typeof(item->'targetPhones') = 'array' then item->'targetPhones' when jsonb_typeof(item->'target_phones') = 'array' then item->'target_phones' else '[]'::jsonb end, case when jsonb_typeof(item->'unmatchedPhones') = 'array' then item->'unmatchedPhones' when jsonb_typeof(item->'unmatched_phones') = 'array' then item->'unmatched_phones' else '[]'::jsonb end, item, item_order::integer, coalesce(public.safe_timestamptz(item->>'createdAt'), public.safe_timestamptz(item->>'created_at'))
     from jsonb_array_elements(p_records) with ordinality as source(item, item_order);
 
   elsif p_collection = 'support_messages' then

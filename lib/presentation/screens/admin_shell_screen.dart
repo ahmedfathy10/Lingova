@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'admin_support_chat_page.dart';
 import 'admin_community_page.dart';
 import 'admin_learning_content_pages.dart';
+import 'admin_registration_form_settings_page.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
@@ -146,6 +150,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           selectedIcon: Icon(Icons.notifications_rounded),
           label: Text('الإشعارات'),
         ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.dynamic_form_outlined),
+          selectedIcon: Icon(Icons.dynamic_form_rounded),
+          label: Text('فورم التسجيل'),
+        ),
       ],
     );
   }
@@ -168,6 +177,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       AdminSupportChatPage(token: widget.session.token),
       AdminCommunityPage(token: widget.session.token),
       AdminNotificationsPage(session: widget.session),
+      AdminRegistrationFormSettingsPage(session: widget.session),
     ];
     final isWide = MediaQuery.sizeOf(context).width >= 850;
 
@@ -277,6 +287,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   icon: Icon(Icons.notifications_outlined),
                   selectedIcon: Icon(Icons.notifications_rounded),
                   label: Text('الإشعارات'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.dynamic_form_outlined),
+                  selectedIcon: Icon(Icons.dynamic_form_rounded),
+                  label: Text('فورم التسجيل'),
                 ),
               ],
             ),
@@ -3685,41 +3700,51 @@ class AdminNotificationsPage extends StatefulWidget {
 class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
   final _service = AdminApiService();
   late Future<List<AdminAppNotification>> _notificationsFuture;
+  late Future<List<AdminUser>> _usersFuture;
   bool _isSending = false;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     _notificationsFuture = _service.getNotifications(widget.session.token);
+    _usersFuture = _service.getUsers(widget.session.token);
   }
 
   void _refresh() {
     setState(() {
       _notificationsFuture = _service.getNotifications(widget.session.token);
+      _usersFuture = _service.getUsers(widget.session.token);
     });
   }
 
   Future<void> _createNotification() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => const _NotificationFormDialog(),
+      builder: (_) => _NotificationFormDialog(usersFuture: _usersFuture),
     );
-    if (result == null) {
-      return;
-    }
+    if (result == null) return;
 
     setState(() => _isSending = true);
     try {
-      final pushFailureReason = await _service.createNotification(
+      final sendResult = await _service.createNotification(
         widget.session.token,
         result,
       );
       if (!mounted) return;
-      if (pushFailureReason == null) {
-        _showMessage('تم إرسال الإشعار.');
-      } else {
-        _showMessage('تم حفظ الإشعار، لكن الـ Push فشل: $pushFailureReason');
+
+      _showMessage(
+        sendResult.pushFailureReason == null
+            ? 'تم إرسال الإشعار.'
+            : 'تم حفظ الإشعار، لكن الـ Push فشل: ${sendResult.pushFailureReason}',
+      );
+
+      if (sendResult.unmatchedPhones.isNotEmpty) {
+        _showMessage(
+          'أرقام غير موجودة: ${sendResult.unmatchedPhones.join(', ')}',
+        );
       }
+
       _refresh();
     } on AuthApiException catch (error) {
       if (!mounted) return;
@@ -3728,9 +3753,46 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
       if (!mounted) return;
       _showMessage('تعذر إرسال الإشعار.');
     } finally {
-      if (mounted) {
-        setState(() => _isSending = false);
-      }
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _deleteNotification(AdminAppNotification notification) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حذف الإشعار'),
+          content: Text('هل تريد حذف "${notification.title}"؟'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.delete_rounded),
+              label: const Text('حذف'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _service.deleteNotification(widget.session.token, notification.id);
+      if (!mounted) return;
+      _showMessage('تم حذف الإشعار.');
+      _refresh();
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('تعذر حذف الإشعار.');
     }
   }
 
@@ -3740,21 +3802,44 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
     );
   }
 
+  List<AdminAppNotification> _filterNotifications(
+    List<AdminAppNotification> notifications,
+  ) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return notifications;
+
+    return notifications.where((notification) {
+      final text =
+          '${notification.title} ${notification.body} ${notification.type} ${notification.createdBy}'
+              .toLowerCase();
+      return text.contains(query);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<AdminAppNotification>>(
       future: _notificationsFuture,
       builder: (context, snapshot) {
         final isLoading = snapshot.connectionState == ConnectionState.waiting;
-        final notifications = snapshot.data ?? const <AdminAppNotification>[];
+        final allNotifications =
+            snapshot.data ?? const <AdminAppNotification>[];
+        final notifications = _filterNotifications(allNotifications);
+
+        final total = allNotifications.length;
+        final thisMonth = allNotifications.where((n) {
+          final now = DateTime.now();
+          final label = n.createdAt;
+          return label.contains(now.year.toString()) ||
+              label.contains('${now.month}');
+        }).length;
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 28),
           children: [
             _PageTitle(
               title: 'الإشعارات',
-              subtitle:
-                  'أرسل تنبيهات للطلاب عبر Firebase واحفظ نسخة منها داخل التطبيق.',
+              subtitle: 'إدارة إشعارات الطلاب ومتابعة القراءة والاستهداف.',
               action: Wrap(
                 textDirection: TextDirection.rtl,
                 spacing: 8,
@@ -3780,7 +3865,61 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                 ],
               ),
             ),
+
+            const SizedBox(height: 20),
+
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              textDirection: TextDirection.rtl,
+              children: [
+                _NotificationStatCard(
+                  title: 'إجمالي الإشعارات',
+                  value: total.toString(),
+                  icon: Icons.notifications_active_rounded,
+                  color: AppColors.orange,
+                ),
+                _NotificationStatCard(
+                  title: 'هذا الشهر',
+                  value: thisMonth.toString(),
+                  icon: Icons.calendar_month_rounded,
+                  color: Colors.blueAccent,
+                ),
+                _NotificationStatCard(
+                  title: 'المتابعة',
+                  value: 'Live',
+                  icon: Icons.visibility_rounded,
+                  color: Colors.green,
+                ),
+              ],
+            ),
+
             const SizedBox(height: 18),
+
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xff111827),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: .06)),
+              ),
+              child: TextField(
+                textAlign: TextAlign.right,
+                textDirection: TextDirection.rtl,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: 'ابحث في الإشعارات...',
+                  border: InputBorder.none,
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
             if (isLoading)
               const Center(
                 child: Padding(
@@ -3793,15 +3932,17 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
             else if (notifications.isEmpty)
               _Panel(
                 child: Text(
-                  'لا توجد إشعارات حتى الآن.',
+                  'لا توجد إشعارات مطابقة.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textMuted),
                 ),
               )
             else
               ...notifications.map(
-                (notification) =>
-                    _AdminNotificationCard(notification: notification),
+                (notification) => _AdminNotificationCard(
+                  notification: notification,
+                  onDelete: () => _deleteNotification(notification),
+                ),
               ),
           ],
         );
@@ -3810,53 +3951,238 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
   }
 }
 
-class _AdminNotificationCard extends StatelessWidget {
-  final AdminAppNotification notification;
+class _NotificationStatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
 
-  const _AdminNotificationCard({required this.notification});
+  const _NotificationStatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: _Panel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
+    return Container(
+      width: 250,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xff111827),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: .22)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .25),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _StatusPill(
-                  text: _typeLabel(notification.type),
-                  color: AppColors.orange,
-                ),
                 Text(
-                  notification.title,
-                  textAlign: TextAlign.right,
+                  value,
                   style: const TextStyle(
-                    fontSize: 17,
+                    fontSize: 25,
                     fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminNotificationCard extends StatelessWidget {
+  final AdminAppNotification notification;
+  final VoidCallback onDelete;
+
+  const _AdminNotificationCard({
+    required this.notification,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Color(0xff151C2A), Color(0xff0B1220)],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        border: Border.all(color: Colors.white24.withValues(alpha: .08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .32),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 20, 84, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    _StatusPill(
+                      text: _typeLabel(notification.type),
+                      color: AppColors.orange,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        notification.title,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  notification.body,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(height: 1.55, fontSize: 15),
+                ),
+
+                const SizedBox(height: 14),
+
+                Wrap(
+                  textDirection: TextDirection.rtl,
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    _NotificationMeta(
+                      icon: Icons.schedule_rounded,
+                      text: notification.createdAt.isEmpty
+                          ? 'وقت الإرسال غير متاح'
+                          : notification.createdAt,
+                    ),
+                    _NotificationMeta(
+                      icon: Icons.person_rounded,
+                      text: 'أرسل بواسطة ${notification.createdBy}',
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 18),
+
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .035),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .06),
+                    ),
+                  ),
+                  child: Row(
+                    textDirection: TextDirection.rtl,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: .12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.mark_email_read_rounded,
+                          color: Colors.green,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'القراء',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'يتم عرض من قرأ الرسالة بعد ربط readers endpoint.',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              notification.body,
-              textAlign: TextAlign.right,
-              style: const TextStyle(height: 1.45),
+          ),
+
+          Positioned(
+            top: 18,
+            left: 18,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: .25),
+                ),
+              ),
+              child: IconButton(
+                tooltip: 'حذف الإشعار',
+                onPressed: onDelete,
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'أرسل بواسطة ${notification.createdBy}',
-              textAlign: TextAlign.right,
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -3877,8 +4203,37 @@ class _AdminNotificationCard extends StatelessWidget {
   }
 }
 
+class _NotificationMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _NotificationMeta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      textDirection: TextDirection.rtl,
+      children: [
+        Icon(icon, size: 17, color: AppColors.orange),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _NotificationFormDialog extends StatefulWidget {
-  const _NotificationFormDialog();
+  final Future<List<AdminUser>> usersFuture;
+
+  const _NotificationFormDialog({required this.usersFuture});
 
   @override
   State<_NotificationFormDialog> createState() =>
@@ -3889,12 +4244,18 @@ class _NotificationFormDialogState extends State<_NotificationFormDialog> {
   final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
   final _body = TextEditingController();
+  final _studentSearch = TextEditingController();
   String _type = 'general';
+  String _targetMode = 'all';
+  String _studentQuery = '';
+  final Set<String> _selectedUserIds = <String>{};
+  final Set<String> _csvPhones = <String>{};
 
   @override
   void dispose() {
     _title.dispose();
     _body.dispose();
+    _studentSearch.dispose();
     super.dispose();
   }
 
@@ -3902,12 +4263,102 @@ class _NotificationFormDialogState extends State<_NotificationFormDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (_targetMode == 'specific' &&
+        _selectedUserIds.isEmpty &&
+        _csvPhones.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ø§Ø®ØªØ± Ø·Ø§Ù„Ø¨ ÙˆØ§Ø­Ø¯ Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„ Ø£Ùˆ Ø§Ø±ÙØ¹ CSV.',
+          ),
+        ),
+      );
+      return;
+    }
 
     Navigator.of(context).pop({
       'title': _title.text.trim(),
       'body': _body.text.trim(),
       'type': _type,
+      'targetMode': _targetMode,
+      'targetUserIds': _targetMode == 'specific'
+          ? _selectedUserIds.toList(growable: false)
+          : const <String>[],
+      'targetPhones': _targetMode == 'specific'
+          ? _csvPhones.toList(growable: false)
+          : const <String>[],
     });
+  }
+
+  Future<void> _pickCsv() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['csv'],
+      withData: true,
+    );
+    final file = result?.files.first;
+    final bytes = file?.bytes;
+    if (bytes == null) {
+      return;
+    }
+    final content = utf8.decode(bytes, allowMalformed: true);
+    final phones = _phonesFromCsv(content);
+    setState(() {
+      _targetMode = 'specific';
+      _csvPhones
+        ..clear()
+        ..addAll(phones);
+    });
+  }
+
+  List<String> _phonesFromCsv(String content) {
+    final lines = const LineSplitter()
+        .convert(content)
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+    if (lines.isEmpty) {
+      return const [];
+    }
+    final headers = _splitCsvLine(
+      lines.first,
+    ).map((item) => item.trim().toLowerCase()).toList();
+    final phoneIndex = headers.indexWhere(
+      (item) => item == 'phone' || item == 'mobile',
+    );
+    if (phoneIndex < 0) {
+      return const [];
+    }
+    return lines
+        .skip(1)
+        .map((line) {
+          final cells = _splitCsvLine(line);
+          if (phoneIndex >= cells.length) {
+            return '';
+          }
+          return cells[phoneIndex].replaceAll(RegExp(r'\s+'), '');
+        })
+        .where((phone) => phone.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  List<String> _splitCsvLine(String line) {
+    final cells = <String>[];
+    final buffer = StringBuffer();
+    var quoted = false;
+    for (var index = 0; index < line.length; index++) {
+      final char = line[index];
+      if (char == '"') {
+        quoted = !quoted;
+      } else if (char == ',' && !quoted) {
+        cells.add(buffer.toString());
+        buffer.clear();
+      } else {
+        buffer.write(char);
+      }
+    }
+    cells.add(buffer.toString());
+    return cells;
   }
 
   @override
@@ -3918,49 +4369,153 @@ class _NotificationFormDialogState extends State<_NotificationFormDialog> {
         title: const Text('إرسال إشعار'),
         content: SizedBox(
           width: 460,
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: _type,
-                  decoration: const InputDecoration(labelText: 'نوع الإشعار'),
-                  items: const [
-                    DropdownMenuItem(value: 'general', child: Text('عام')),
-                    DropdownMenuItem(value: 'course', child: Text('كورس')),
-                    DropdownMenuItem(value: 'lesson', child: Text('درس')),
-                    DropdownMenuItem(value: 'exam', child: Text('اختبار')),
-                    DropdownMenuItem(value: 'payment', child: Text('دفع')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _type = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _title,
-                  textAlign: TextAlign.right,
-                  decoration: const InputDecoration(labelText: 'عنوان الإشعار'),
-                  validator: (value) =>
-                      (value ?? '').trim().isEmpty ? 'مطلوب' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _body,
-                  minLines: 4,
-                  maxLines: 7,
-                  textAlign: TextAlign.right,
-                  decoration: const InputDecoration(
-                    labelText: 'محتوى الإشعار',
-                    alignLabelWithHint: true,
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _type,
+                    decoration: const InputDecoration(labelText: 'نوع الإشعار'),
+                    items: const [
+                      DropdownMenuItem(value: 'general', child: Text('عام')),
+                      DropdownMenuItem(value: 'course', child: Text('كورس')),
+                      DropdownMenuItem(value: 'lesson', child: Text('درس')),
+                      DropdownMenuItem(value: 'exam', child: Text('اختبار')),
+                      DropdownMenuItem(value: 'payment', child: Text('دفع')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _type = value);
+                      }
+                    },
                   ),
-                  validator: (value) =>
-                      (value ?? '').trim().isEmpty ? 'مطلوب' : null,
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _title,
+                    textAlign: TextAlign.right,
+                    decoration: const InputDecoration(
+                      labelText: 'عنوان الإشعار',
+                    ),
+                    validator: (value) =>
+                        (value ?? '').trim().isEmpty ? 'مطلوب' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _body,
+                    minLines: 4,
+                    maxLines: 7,
+                    textAlign: TextAlign.right,
+                    decoration: const InputDecoration(
+                      labelText: 'محتوى الإشعار',
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (value) =>
+                        (value ?? '').trim().isEmpty ? 'مطلوب' : null,
+                  ),
+                  const SizedBox(height: 14),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'all',
+                        icon: Icon(Icons.groups_rounded),
+                        label: Text('All students'),
+                      ),
+                      ButtonSegment(
+                        value: 'specific',
+                        icon: Icon(Icons.person_search_rounded),
+                        label: Text('Selected students'),
+                      ),
+                    ],
+                    selected: {_targetMode},
+                    onSelectionChanged: (value) {
+                      setState(() => _targetMode = value.first);
+                    },
+                  ),
+                  if (_targetMode == 'specific') ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _studentSearch,
+                      textAlign: TextAlign.right,
+                      decoration: const InputDecoration(
+                        labelText: 'Search by name or phone',
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _studentQuery = value),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _pickCsv,
+                      icon: const Icon(Icons.upload_file_rounded),
+                      label: Text(
+                        _csvPhones.isEmpty
+                            ? 'Upload CSV with phone or mobile column'
+                            : 'CSV: ${_csvPhones.length} phones',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    FutureBuilder<List<AdminUser>>(
+                      future: widget.usersFuture,
+                      builder: (context, snapshot) {
+                        final users = (snapshot.data ?? const <AdminUser>[])
+                            .where((user) => !user.isAdminRole)
+                            .where((user) {
+                              final query = _studentQuery.trim().toLowerCase();
+                              if (query.isEmpty) {
+                                return true;
+                              }
+                              return '${user.fullName} ${user.phone}'
+                                  .toLowerCase()
+                                  .contains(query);
+                            })
+                            .take(80)
+                            .toList();
+
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        return ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 220),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: users.length,
+                            itemBuilder: (context, index) {
+                              final user = users[index];
+                              return CheckboxListTile(
+                                value: _selectedUserIds.contains(user.id),
+                                onChanged: (selected) {
+                                  setState(() {
+                                    if (selected == true) {
+                                      _selectedUserIds.add(user.id);
+                                    } else {
+                                      _selectedUserIds.remove(user.id);
+                                    }
+                                  });
+                                },
+                                title: Text(
+                                  user.fullName,
+                                  textAlign: TextAlign.right,
+                                ),
+                                subtitle: Text(
+                                  user.phone,
+                                  textAlign: TextAlign.right,
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
@@ -6358,7 +6913,6 @@ class _AdminBooksPageState extends State<AdminBooksPage> {
           language: result['language'],
           isFree: result['isFree'],
           url: result['url'],
-          createdAt: DateTime.now(),
           createdBy: widget.session.name,
         ),
       );
@@ -6502,10 +7056,8 @@ class _AdminBooksPageState extends State<AdminBooksPage> {
                                     language: book.language,
                                     isFree: book.isFree,
                                     url: book.url,
-                                    createdAt:
-                                        book.createdAt?.toIso8601String() ??
-                                        DateTime.now().toIso8601String(),
                                     createdBy: book.createdBy,
+                                    createdAt: DateTime.now().toIso8601String(),
                                   ),
                                 ),
                               ),

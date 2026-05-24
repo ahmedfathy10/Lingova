@@ -45,7 +45,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _coursesFuture = _courseDataSource.getCourses();
-    _notificationsFuture = _notificationsDataSource.getNotifications();
+    _notificationsFuture = _notificationsDataSource.getNotifications(
+      unreadOnly: true,
+    );
     _lastVideoFuture = _loadLastVideo();
     _streakFuture = _loadStreak();
   }
@@ -55,7 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.user?.id != widget.user?.id ||
         oldWidget.user?.enrollments.length != widget.user?.enrollments.length) {
-      _notificationsFuture = _notificationsDataSource.getNotifications();
+      _notificationsFuture = _notificationsDataSource.getNotifications(
+        unreadOnly: true,
+      );
       _lastVideoFuture = _loadLastVideo();
       _streakFuture = _loadStreak();
     }
@@ -113,15 +117,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openNotifications() async {
-    await Navigator.of(
-      context,
-    ).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => NotificationsScreen(user: widget.user)),
     );
 
     if (mounted) {
       setState(() {
-        _notificationsFuture = _notificationsDataSource.getNotifications();
+        _notificationsFuture = _notificationsDataSource.getNotifications(
+          unreadOnly: true,
+        );
       });
     }
   }
@@ -172,13 +176,14 @@ class _HomeScreenState extends State<HomeScreen> {
             completedUrls: progressRecords
                 .map((progress) => progress.vimeoUrl)
                 .toSet(),
-            onVideoWatched: (completedPart) => _watchProgressService.completePart(
-              studentId: user.id,
-              content: content,
-              level: location.level,
-              lecture: location.lecture,
-              part: completedPart,
-            ),
+            onVideoWatched: (completedPart) =>
+                _watchProgressService.completePart(
+                  studentId: user.id,
+                  content: content,
+                  level: location.level,
+                  lecture: location.lecture,
+                  part: completedPart,
+                ),
           ),
         ),
       );
@@ -255,8 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       return _StreakCard(
                         streak: snapshot.data?.streak ?? 0,
                         isLoading:
-                            snapshot.connectionState ==
-                            ConnectionState.waiting,
+                            snapshot.connectionState == ConnectionState.waiting,
                       );
                     },
                   ),
@@ -456,10 +460,7 @@ class _StreakCardState extends State<_StreakCard>
                                 gradient: const LinearGradient(
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
-                                  colors: [
-                                    Color(0xFFFFB15D),
-                                    AppColors.orange,
-                                  ],
+                                  colors: [Color(0xFFFFB15D), AppColors.orange],
                                 ),
                                 boxShadow: [
                                   BoxShadow(
@@ -554,10 +555,7 @@ class _StreakCardState extends State<_StreakCard>
                                 )
                               : TweenAnimationBuilder<int>(
                                   key: ValueKey(widget.streak),
-                                  tween: IntTween(
-                                    begin: 0,
-                                    end: widget.streak,
-                                  ),
+                                  tween: IntTween(begin: 0, end: widget.streak),
                                   duration: const Duration(milliseconds: 650),
                                   curve: Curves.easeOutCubic,
                                   builder: (context, value, _) {
@@ -628,8 +626,8 @@ class _StreakCardState extends State<_StreakCard>
                           widget.isLoading
                               ? 'بنراجع آخر نشاط ليك'
                               : widget.streak >= 7
-                                  ? 'أسبوع كامل من الاستمرارية'
-                                  : 'كمّل 7 أيام وافتح إنجاز جديد',
+                              ? 'أسبوع كامل من الاستمرارية'
+                              : 'كمّل 7 أيام وافتح إنجاز جديد',
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             color: AppColors.textMuted,

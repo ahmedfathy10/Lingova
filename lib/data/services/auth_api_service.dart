@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../core/api_config.dart';
 import '../models/auth_user.dart';
 import '../models/login_request.dart';
+import '../models/registration_form_config.dart';
 import '../models/register_request.dart';
 import 'auth_http_client.dart';
 
@@ -37,6 +38,18 @@ class AppStreak {
 }
 
 class AuthApiService {
+  Future<RegistrationFormConfig> getRegistrationFormConfig() async {
+    final response = await getJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/registration-form'),
+    );
+    if (response.statusCode == 200) {
+      final json = _readJson(response.body);
+      final formJson = (json['form'] as Map?)?.cast<String, dynamic>() ?? json;
+      return RegistrationFormConfig.fromJson(formJson);
+    }
+    return RegistrationFormConfig.defaultConfig;
+  }
+
   Future<AuthUser> register(RegisterRequest request) async {
     final response = await postJson(
       Uri.parse('${ApiConfig.baseUrl}/api/register'),

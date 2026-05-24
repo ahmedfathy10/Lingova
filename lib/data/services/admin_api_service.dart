@@ -7,6 +7,7 @@ import '../models/admin_course_part.dart';
 import '../models/admin_subscription_request.dart';
 import '../models/admin_user.dart';
 import '../models/course_question.dart';
+import '../models/registration_form_config.dart';
 import 'auth_api_service.dart';
 import 'auth_http_client.dart';
 
@@ -19,6 +20,18 @@ class AdminSession {
     required this.token,
     required this.name,
     required this.email,
+  });
+}
+
+class AdminNotificationCreateResult {
+  final String? pushFailureReason;
+  final List<String> unmatchedPhones;
+  final int matchedCount;
+
+  const AdminNotificationCreateResult({
+    this.pushFailureReason,
+    this.unmatchedPhones = const [],
+    this.matchedCount = 0,
   });
 }
 
@@ -72,6 +85,38 @@ class AdminApiService {
     }
 
     throw AuthApiException(_readMessage(json, response.statusCode));
+  }
+
+  Future<RegistrationFormConfig> getRegistrationFormConfig(String token) async {
+    final response = await getJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/registration-form'),
+      headers: _headers(token),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode == 200) {
+      final formJson = (json['form'] as Map?)?.cast<String, dynamic>() ?? json;
+      return RegistrationFormConfig.fromJson(formJson);
+    }
+
+    throw AuthApiException(_readMessage(json, response.statusCode));
+  }
+
+  Future<void> updateRegistrationFormConfig(
+    String token,
+    RegistrationFormConfig config,
+  ) async {
+    final response = await postJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/registration-form'),
+      config.toJson(),
+      headers: _headers(token),
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return;
+    }
+
+    throw AuthApiException(
+      _readMessage(_readJson(response.body), response.statusCode),
+    );
   }
 
   Future<List<AdminActivityLog>> getActivityLogs(String token) async {
@@ -144,7 +189,7 @@ class AdminApiService {
     throw AuthApiException(_readMessage(json, response.statusCode));
   }
 
-  Future<String?> createNotification(
+  Future<AdminNotificationCreateResult> createNotification(
     String token,
     Map<String, dynamic> notification,
   ) async {
@@ -156,10 +201,37 @@ class AdminApiService {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final json = _readJson(response.body);
       final push = json['push'];
+      final unmatchedPhones = (json['unmatchedPhones'] as List? ?? const [])
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList();
+      final matchedCount =
+          int.tryParse(json['matchedCount']?.toString() ?? '') ?? 0;
       if (push is Map && push['sent'] != true) {
-        return push['reason']?.toString() ?? 'push_failed';
+        return AdminNotificationCreateResult(
+          pushFailureReason: push['reason']?.toString() ?? 'push_failed',
+          unmatchedPhones: unmatchedPhones,
+          matchedCount: matchedCount,
+        );
       }
-      return null;
+      return AdminNotificationCreateResult(
+        unmatchedPhones: unmatchedPhones,
+        matchedCount: matchedCount,
+      );
+    }
+
+    throw AuthApiException(
+      _readMessage(_readJson(response.body), response.statusCode),
+    );
+  }
+
+  Future<void> deleteNotification(String token, String notificationId) async {
+    final response = await deleteJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/notifications/$notificationId'),
+      headers: _headers(token),
+    );
+    if (response.statusCode == 200) {
+      return;
     }
 
     throw AuthApiException(

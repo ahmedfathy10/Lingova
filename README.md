@@ -2,6 +2,18 @@
 
 A new Flutter project.
 
+## Backend data persistence
+
+The Node backend stores chats, uploaded audio links, community posts, exams,
+exam results, and certificate source data in Supabase/PostgreSQL when
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are configured.
+
+- Run `backend/supabase/schema.sql` in Supabase before enabling these variables.
+- Run `npm run migrate:supabase` once to import existing `backend/data/*.json`.
+- Local builds without Supabase still store data in
+  `%LOCALAPPDATA%\Lingova\backend-data` by default.
+- More details: [backend/PERSISTENT_DATA.md](backend/PERSISTENT_DATA.md)
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

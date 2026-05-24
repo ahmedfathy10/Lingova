@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
 import '../../data/models/register_request.dart';
+import '../../data/models/registration_form_config.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/auth_storage_service.dart';
 import '../widgets/app_text_field.dart';
@@ -18,122 +19,70 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _authApiService = AuthApiService();
+  final Map<String, TextEditingController> _controllers = {};
+  final Map<String, String?> _dropdownValues = {};
 
-  final _fullNameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-  final _referralReasonController = TextEditingController();
-
-  String language = 'الإنجليزية';
-  String? city;
-  String? job;
-  String? learningReason;
+  late Future<RegistrationFormConfig> _configFuture;
   bool _isLoading = false;
 
-  static const _egyptGovernorates = [
-    'القاهرة',
-    'الجيزة',
-    'الإسكندرية',
-    'الدقهلية',
-    'البحر الأحمر',
-    'البحيرة',
-    'الفيوم',
-    'الغربية',
-    'الإسماعيلية',
-    'المنوفية',
-    'المنيا',
-    'القليوبية',
-    'الوادي الجديد',
-    'السويس',
-    'أسوان',
-    'أسيوط',
-    'بني سويف',
-    'بورسعيد',
-    'دمياط',
-    'الشرقية',
-    'جنوب سيناء',
-    'كفر الشيخ',
-    'مطروح',
-    'الأقصر',
-    'قنا',
-    'شمال سيناء',
-    'سوهاج',
-  ];
-
-  static const _jobs = [
-    'طالب',
-    'معلم',
-    'طبيب',
-    'صيدلي',
-    'مهندس',
-    'محاسب',
-    'محامي',
-    'مصمم جرافيك',
-    'مبرمج',
-    'مصمم واجهات',
-    'مسوق رقمي',
-    'مندوب مبيعات',
-    'خدمة عملاء',
-    'موظف إداري',
-    'مدير مشروع',
-    'مدير موارد بشرية',
-    'صاحب عمل',
-    'رائد أعمال',
-    'مترجم',
-    'كاتب محتوى',
-    'صحفي',
-    'باحث',
-    'عامل حر',
-    'فني',
-    'سائق',
-    'ممرض',
-    'مدرب',
-    'مصمم أزياء',
-    'ربة منزل',
-    'أخرى',
-  ];
-
-  static const _languages = ['الإنجليزية', 'الألمانية'];
-
-  static const _learningReasons = [
-    'السفر',
-    'الدراسة',
-    'الشغل',
-    'تعليم الأولاد',
-    'سبب أخر',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _configFuture = _loadConfig();
+  }
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    _referralReasonController.dispose();
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _register() async {
+  Future<RegistrationFormConfig> _loadConfig() async {
+    try {
+      final config = await _authApiService.getRegistrationFormConfig();
+      _syncFormState(config);
+      return config;
+    } catch (_) {
+      final config = RegistrationFormConfig.defaultConfig;
+      _syncFormState(config);
+      return config;
+    }
+  }
+
+  void _syncFormState(RegistrationFormConfig config) {
+    for (final field in config.fields.where((field) => field.enabled)) {
+      if (field.isDropdown) {
+        _dropdownValues.putIfAbsent(
+          field.key,
+          () => field.options.isNotEmpty ? field.options.first : null,
+        );
+      } else {
+        _controllers.putIfAbsent(field.key, TextEditingController.new);
+      }
+    }
+  }
+
+  Future<void> _register(RegistrationFormConfig config) async {
     if (!_formKey.currentState!.validate()) {
       return;
+    }
+
+    final values = <String, dynamic>{};
+    for (final field in config.fields.where((field) => field.enabled)) {
+      if (field.key == 'confirmPassword') {
+        continue;
+      }
+      values[field.key] = field.isDropdown
+          ? (_dropdownValues[field.key] ?? '')
+          : (_controllers[field.key]?.text.trim() ?? '');
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final user = await _authApiService.register(
-        RegisterRequest(
-          fullName: _fullNameController.text.trim(),
-          phone: _phoneController.text.trim(),
-          password: _passwordController.text,
-          address: city ?? '',
-          job: job ?? '',
-          language: language,
-          learningReason: learningReason ?? '',
-          referralReason: _referralReasonController.text.trim(),
-        ),
-      );
+      final user = await _authApiService.register(RegisterRequest(values));
 
       await AuthStorageService.saveUser(user);
 
@@ -144,9 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => MainScreen(user: user),
-        ),
+        MaterialPageRoute(builder: (_) => MainScreen(user: user)),
         (_) => false,
       );
     } on AuthApiException catch (error) {
@@ -179,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        icon: Text('🎉', style: TextStyle(fontSize: 42)),
+        icon: const Text('🎉', style: TextStyle(fontSize: 42)),
         title: const Directionality(
           textDirection: TextDirection.rtl,
           child: Text('تم تسجيل الحساب بنجاح', textAlign: TextAlign.center),
@@ -195,84 +142,91 @@ class _RegisterScreenState extends State<RegisterScreen> {
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('يلا نبدأ'),
+            child: const Text('يلا نبدأ'),
           ),
         ],
       ),
     );
   }
 
-  String? _required(String? value) {
-    if (value == null || value.trim().isEmpty) {
+  String? _validateField(
+    RegistrationFormFieldConfig field,
+    String? value,
+    RegistrationFormConfig config,
+  ) {
+    if (field.required && (value == null || value.trim().isEmpty)) {
       return 'هذا الحقل مطلوب';
     }
 
-    return null;
-  }
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
 
-  String? _validatePhone(String? value) {
-    final requiredError = _required(value);
-    if (requiredError != null) return requiredError;
-
-    final phone = value!.trim();
-    if (!RegExp(r'^[0-9+\-\s]{8,20}$').hasMatch(phone)) {
+    if (field.type == RegistrationFieldType.phone &&
+        !RegExp(r'^[0-9+\-\s]{8,20}$').hasMatch(value.trim())) {
       return 'اكتب رقم هاتف صحيح';
     }
 
-    return null;
-  }
-
-  String? _validatePassword(String? value) {
-    final requiredError = _required(value);
-    if (requiredError != null) return requiredError;
-
-    if (value!.length < 6) {
+    if (field.key == 'password' && value.length < 6) {
       return 'كلمة المرور يجب ألا تقل عن 6 أحرف';
     }
 
-    return null;
-  }
-
-  String? _validateConfirmPassword(String? value) {
-    final requiredError = _required(value);
-    if (requiredError != null) return requiredError;
-
-    if (value != _passwordController.text) {
-      return 'كلمتا المرور غير متطابقتين';
+    if (field.key == 'confirmPassword') {
+      final password = _controllers['password']?.text ?? '';
+      if (value != password) {
+        return 'كلمتا المرور غير متطابقتين';
+      }
     }
 
     return null;
   }
 
-  Widget _buildDropdownField({
-    required String label,
-    required IconData icon,
-    required String? value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return DropdownButtonFormField<String>(
-      alignment: AlignmentDirectional.centerEnd,
-      initialValue: value,
-      isExpanded: true,
-      items: items
-          .map(
-            (item) => DropdownMenuItem(
-              value: item,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  item,
-                  textAlign: TextAlign.right,
-                  overflow: TextOverflow.ellipsis,
+  Widget _buildField(
+    RegistrationFormFieldConfig field,
+    RegistrationFormConfig config,
+  ) {
+    if (field.isDropdown) {
+      return DropdownButtonFormField<String>(
+        alignment: AlignmentDirectional.centerEnd,
+        initialValue: _dropdownValues[field.key],
+        isExpanded: true,
+        items: field.options
+            .map(
+              (item) => DropdownMenuItem(
+                value: item,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    item,
+                    textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
-            ),
-          )
-          .toList(),
-      onChanged: _isLoading ? null : onChanged,
-      validator: _required,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+            )
+            .toList(),
+        onChanged: _isLoading
+            ? null
+            : (value) => setState(() => _dropdownValues[field.key] = value),
+        validator: (value) => _validateField(field, value, config),
+        decoration: InputDecoration(
+          labelText: field.label,
+          prefixIcon: Icon(field.icon),
+        ),
+      );
+    }
+
+    return AppTextField(
+      controller: _controllers[field.key],
+      label: field.label,
+      icon: field.icon,
+      maxLines: field.type == RegistrationFieldType.multiline ? 3 : 1,
+      keyboardType: field.type == RegistrationFieldType.phone
+          ? TextInputType.phone
+          : TextInputType.text,
+      obscureText: field.type == RegistrationFieldType.password,
+      validator: (value) => _validateField(field, value, config),
+      textInputAction: TextInputAction.next,
     );
   }
 
@@ -287,117 +241,76 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-            children: [
-              const AuthHeader(
-                title: 'ابدأ رحلتك معنا',
-                subtitle:
-                    'املأ بياناتك مرة واحدة لنصمم لك تجربة تعلم مناسبة لهدفك.',
-                centerBrand: true,
+        child: FutureBuilder<RegistrationFormConfig>(
+          future: _configFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final config =
+                snapshot.data ?? RegistrationFormConfig.defaultConfig;
+            final fields = config.fields
+                .where((field) => field.enabled)
+                .toList();
+
+            return Form(
+              key: _formKey,
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                itemCount: fields.length + 4,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 14),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return const AuthHeader(
+                      title: 'ابدأ رحلتك معنا',
+                      subtitle:
+                          'املأ بياناتك مرة واحدة لنصمم لك تجربة تعلم مناسبة لهدفك.',
+                      centerBrand: true,
+                    );
+                  }
+                  if (index == 1) {
+                    return const SizedBox(height: 14);
+                  }
+                  final fieldIndex = index - 2;
+                  if (fieldIndex < fields.length) {
+                    return _buildField(fields[fieldIndex], config);
+                  }
+                  if (fieldIndex == fields.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : () => _register(config),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                ),
+                              )
+                            : const Text(
+                                'إنشاء الحساب',
+                                textAlign: TextAlign.right,
+                              ),
+                      ),
+                    );
+                  }
+                  return TextButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'لديك حساب بالفعل؟ تسجيل الدخول',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  );
+                },
               ),
-              SizedBox(height: 28),
-              AppTextField(
-                controller: _fullNameController,
-                label: 'الاسم بالكامل',
-                icon: Icons.person_rounded,
-                validator: _required,
-                textInputAction: TextInputAction.next,
-              ),
-              SizedBox(height: 14),
-              AppTextField(
-                controller: _phoneController,
-                label: 'رقم الهاتف',
-                icon: Icons.phone_rounded,
-                keyboardType: TextInputType.phone,
-                validator: _validatePhone,
-                textInputAction: TextInputAction.next,
-              ),
-              SizedBox(height: 14),
-              AppTextField(
-                controller: _passwordController,
-                label: 'كلمة المرور',
-                icon: Icons.lock_rounded,
-                obscureText: true,
-                validator: _validatePassword,
-                textInputAction: TextInputAction.next,
-              ),
-              SizedBox(height: 14),
-              AppTextField(
-                controller: _confirmPasswordController,
-                label: 'تأكيد كلمة المرور',
-                icon: Icons.verified_user_rounded,
-                obscureText: true,
-                validator: _validateConfirmPassword,
-                textInputAction: TextInputAction.next,
-              ),
-              SizedBox(height: 14),
-              _buildDropdownField(
-                value: city,
-                items: _egyptGovernorates,
-                onChanged: (value) => setState(() => city = value),
-                label: 'المحافظة',
-                icon: Icons.location_on_rounded,
-              ),
-              SizedBox(height: 14),
-              _buildDropdownField(
-                value: job,
-                items: _jobs,
-                onChanged: (value) => setState(() => job = value),
-                label: 'الوظيفة',
-                icon: Icons.work_rounded,
-              ),
-              SizedBox(height: 14),
-              _buildDropdownField(
-                value: language,
-                items: _languages,
-                onChanged: (value) => setState(() {
-                  language = value ?? language;
-                }),
-                label: 'اللغة المهتم بها',
-                icon: Icons.translate_rounded,
-              ),
-              SizedBox(height: 14),
-              _buildDropdownField(
-                value: learningReason,
-                items: _learningReasons,
-                onChanged: (value) => setState(() => learningReason = value),
-                label: 'سبب تعلم اللغة',
-                icon: Icons.flag_rounded,
-              ),
-              SizedBox(height: 14),
-              AppTextField(
-                controller: _referralReasonController,
-                label: 'لماذا اخترتنا؟',
-                icon: Icons.favorite_rounded,
-                validator: _required,
-              ),
-              SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _register,
-                child: _isLoading
-                    ? SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
-                      )
-                    : Text('إنشاء الحساب', textAlign: TextAlign.right),
-              ),
-              SizedBox(height: 14),
-              TextButton(
-                onPressed: _isLoading
-                    ? null
-                    : () => Navigator.of(context).pop(),
-                child: Text(
-                  'لديك حساب بالفعل؟ تسجيل الدخول',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(color: AppColors.textMuted),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

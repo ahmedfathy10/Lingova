@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "lingova_app" "\0"
+            VALUE "CompanyName", "Lingova" "\0"
+            VALUE "FileDescription", "Lingova" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "lingova_app" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "InternalName", "Lingova" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Lingova. All rights reserved." "\0"
             VALUE "OriginalFilename", "lingova_app.exe" "\0"
-            VALUE "ProductName", "lingova_app" "\0"
+            VALUE "ProductName", "Lingova" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "build:web:user": "flutter build web -t lib/main_app.dart --dart-define=API_BASE_URL=https://lingova-production.up.railway.app --output build/web-user",
+    "build:web:admin": "flutter build web -t lib/main_admin.dart --dart-define=API_BASE_URL=https://lingova-production.up.railway.app --output build/web-admin",
+    "deploy:web:user": "firebase deploy --only hosting:user",
+    "deploy:web:admin": "firebase deploy --only hosting:admin"
+  },
   "dependencies": {
     "firebase-admin": "^13.9.0"
   }
