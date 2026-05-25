@@ -35,6 +35,29 @@ class AdminNotificationCreateResult {
   });
 }
 
+class NotificationReader {
+  final String id;
+  final String fullName;
+  final String phone;
+  final String readAt; // ISO string or empty
+
+  NotificationReader({
+    required this.id,
+    required this.fullName,
+    required this.phone,
+    required this.readAt,
+  });
+
+  factory NotificationReader.fromJson(Map<String, dynamic> json) {
+    return NotificationReader(
+      id: (json['id'] ?? json['userId'] ?? json['user_id'] ?? '').toString(),
+      fullName: (json['fullName'] ?? json['full_name'] ?? json['name'] ?? '').toString(),
+      phone: (json['phone'] ?? json['userPhone'] ?? json['user_phone'] ?? '').toString(),
+      readAt: (json['readAt'] ?? json['read_at'] ?? '').toString(),
+    );
+  }
+}
+
 class AdminApiService {
   Future<AdminSession> login({
     required String email,
@@ -239,18 +262,21 @@ class AdminApiService {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getNotificationReaders(
+  Future<List<NotificationReader>> getNotificationReaders(
     String token,
     String notificationId,
   ) async {
     final response = await getJson(
-      Uri.parse('${ApiConfig.baseUrl}/api/admin/notifications/$notificationId/readers'),
+      Uri.parse('${ApiConfig.baseUrl}/api/notifications/$notificationId/readers'),
       headers: _headers(token),
     );
     final json = _readJson(response.body);
     if (response.statusCode == 200) {
       final readers = json['readers'] as List? ?? const [];
-      return readers.whereType<Map<String, dynamic>>().toList();
+      return readers
+          .whereType<Map<String, dynamic>>()
+          .map(NotificationReader.fromJson)
+          .toList();
     }
 
     throw AuthApiException(_readMessage(json, response.statusCode));
