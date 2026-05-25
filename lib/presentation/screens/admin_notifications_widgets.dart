@@ -460,7 +460,18 @@ class _AdminNotificationCardState extends State<_AdminNotificationCard> {
         widget.notification.id,
       );
       if (!mounted) return;
-      setState(() => _readers = readers);
+      setState(() {
+        _readers = readers
+            .map(
+              (reader) => {
+                'id': reader.id,
+                'fullName': reader.fullName,
+                'phone': reader.phone,
+                'readAt': reader.readAt,
+              },
+            )
+            .toList();
+      });
     } catch (_) {
       // Keep the card usable when reader analytics are unavailable.
     } finally {
@@ -1308,9 +1319,15 @@ String _initials(String name) {
       .split(RegExp(r'\s+'))
       .where((part) => part.isNotEmpty)
       .toList();
-  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-  return '${parts.first.characters.first}${parts.last.characters.first}'
+  if (parts.length == 1) return _firstTextCharacter(parts.first).toUpperCase();
+  return '${_firstTextCharacter(parts.first)}${_firstTextCharacter(parts.last)}'
       .toUpperCase();
+}
+
+String _firstTextCharacter(String value) {
+  if (value.isEmpty) return '';
+  final runes = value.runes;
+  return String.fromCharCode(runes.first);
 }
 
 List<Color> _avatarColors(String seed) {
