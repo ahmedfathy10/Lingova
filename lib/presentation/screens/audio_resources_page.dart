@@ -783,6 +783,36 @@ class _EmbeddedAudioPanel extends StatelessWidget {
 String _playerHtml(_InlineAudioData audio) {
   final source = _embedUrl(audio.url);
   final safeSource = _escape(source);
+  final preview = _drivePreviewUrl(audio.url);
+
+  if (preview != null) {
+    final safePreview = _escape(preview);
+    return '''
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #0b0d12;
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: #0b0d12;
+  }
+</style>
+</head>
+<body>
+  <iframe src="$safePreview" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+</body>
+</html>
+''';
+  }
 
   return '''
 <!DOCTYPE html>
@@ -842,6 +872,27 @@ String _embedUrl(String value) {
     return 'https://drive.google.com/embeddedfolderview?id=${folderMatch.group(1)}#list';
   }
   return url;
+}
+
+String? _drivePreviewUrl(String value) {
+  final id = _driveFileId(value);
+  if (id == null || id.isEmpty) return null;
+  return 'https://drive.google.com/file/d/$id/preview';
+}
+
+String? _driveFileId(String value) {
+  final url = value.trim();
+  final fileMatch = RegExp(
+    r'drive\.google\.com/file/d/([^/?#]+)',
+  ).firstMatch(url);
+  if (fileMatch != null) return fileMatch.group(1);
+
+  final openMatch = RegExp(
+    r'drive\.google\.com/(?:open|uc)\?(?:[^#]*&)?id=([^&#]+)',
+  ).firstMatch(url);
+  if (openMatch != null) return openMatch.group(1);
+
+  return null;
 }
 
 String _escape(String value) {

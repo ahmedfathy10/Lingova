@@ -1,6 +1,7 @@
-import 'dart:convert';
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
-import 'package:file_picker/file_picker.dart';
+import 'dart:async';
+import 'dart:html' as html;
 
 class PickedAudioFolderFile {
   final String title;
@@ -16,70 +17,76 @@ class PickedAudioFolderFile {
   });
 }
 
-const _audioExtensions = {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'};
+const _audioExtensions = {'.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'};
 
 Future<List<PickedAudioFolderFile>?> pickAudioFolderFiles() async {
-  final result = await FilePicker.pickFiles(
-    type: FileType.custom,
-    allowedExtensions: _audioExtensions.toList(),
-    allowMultiple: true,
-    withData: true,
-    dialogTitle: 'اختر ملفات الصوت داخل الفولدر',
-  );
-  if (result == null) return null;
+  final input = html.FileUploadInputElement()
+    ..multiple = true
+    ..accept = _audioExtensions.join(',');
+  input.setAttribute('webkitdirectory', '');
+  input.setAttribute('directory', '');
+  input.click();
 
-  final files = result.files
-      .where((file) => _audioExtensions.contains(_extension(file.name)))
-      .where((file) => file.bytes != null)
-      .map(
-        (file) => PickedAudioFolderFile(
-          title: _titleFromName(file.name),
-          dataUrl:
-              'data:${_mimeType(_extension(file.name))};base64,${base64Encode(file.bytes!)}',
-          relativePath: _relativePath(file),
-        ),
-      )
-      .toList();
-  files.sort((a, b) => a.relativePath.compareTo(b.relativePath));
-  return files;
+  await input.onChange.first;
+  final rawFiles = input.files;
+  if (rawFiles == null) return null;
+
+  final picked = <PickedAudioFolderFile>[];
+  for (final file in rawFiles) {
+    final relativePath = _relativePath(file);
+    final extension = _extension(relativePath);
+    if (!_audioExtensions.contains(extension)) continue;
+
+    picked.add(
+      PickedAudioFolderFile(
+        title: _titleFromPath(relativePath),
+        dataUrl: await _readDataUrl(file),
+        relativePath: relativePath,
+      ),
+    );
+  }
+
+  picked.sort((a, b) => a.relativePath.compareTo(b.relativePath));
+  return picked;
 }
 
-String _relativePath(PlatformFile file) {
-  final candidate = file.path ?? file.identifier ?? file.name;
-  return candidate
+Future<String> _readDataUrl(html.File file) {
+  final completer = Completer<String>();
+  final reader = html.FileReader();
+  reader.onLoad.first.then((_) {
+    completer.complete(reader.result?.toString() ?? '');
+  });
+  reader.onError.first.then((_) {
+    completer.completeError(reader.error ?? StateError('File read failed'));
+  });
+  reader.readAsDataUrl(file);
+  return completer.future;
+}
+
+String _relativePath(html.File file) {
+  final candidate = file.relativePath?.trim();
+  final path = candidate == null || candidate.isEmpty ? file.name : candidate;
+  return path
       .replaceAll('\\', '/')
       .split('/')
-      .where((part) {
-        return part.isNotEmpty && part != '.' && part != '..';
-      })
+      .where((part) => part.isNotEmpty && part != '.' && part != '..')
       .join('/');
 }
 
-String _titleFromName(String name) {
+String _titleFromPath(String path) {
+  final name = _fileName(path);
   final dot = name.lastIndexOf('.');
   return dot <= 0 ? name : name.substring(0, dot);
 }
 
-String _extension(String name) {
-  final dot = name.lastIndexOf('.');
-  return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+String _fileName(String path) {
+  final normalized = path.replaceAll('\\', '/');
+  final slash = normalized.lastIndexOf('/');
+  return slash < 0 ? normalized : normalized.substring(slash + 1);
 }
 
-String _mimeType(String extension) {
-  switch (extension) {
-    case 'mp3':
-      return 'audio/mpeg';
-    case 'wav':
-      return 'audio/wav';
-    case 'm4a':
-      return 'audio/mp4';
-    case 'aac':
-      return 'audio/aac';
-    case 'ogg':
-      return 'audio/ogg';
-    case 'flac':
-      return 'audio/flac';
-    default:
-      return 'audio/mpeg';
-  }
+String _extension(String path) {
+  final name = _fileName(path);
+  final dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.substring(dot).toLowerCase();
 }
