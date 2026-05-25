@@ -584,6 +584,7 @@ create table if not exists public.audio_resource_items (
   title text not null default '',
   url text not null default '',
   file_type text not null default 'audio',
+  relative_path text not null default '',
   raw_payload jsonb not null default '{}'::jsonb,
   source_position integer not null default 0,
   created_at timestamptz not null default now(),
@@ -941,6 +942,7 @@ alter table public.audio_resource_items add column if not exists audio_resource_
 alter table public.audio_resource_items add column if not exists title text not null default '';
 alter table public.audio_resource_items add column if not exists url text not null default '';
 alter table public.audio_resource_items add column if not exists file_type text not null default 'audio';
+alter table public.audio_resource_items add column if not exists relative_path text not null default '';
 alter table public.audio_resource_items add column if not exists raw_payload jsonb not null default '{}'::jsonb;
 alter table public.audio_resource_items add column if not exists source_position integer not null default 0;
 alter table public.audio_resource_items add column if not exists created_at timestamptz not null default now();
@@ -1341,7 +1343,37 @@ begin
   elsif collection_name = 'vocabulary_words' then
     return query select v.source_position, v.raw_payload from public.vocabulary_words v order by v.source_position;
   elsif collection_name = 'audio_resources' then
-    return query select a.source_position, a.raw_payload from public.audio_resources a order by a.source_position;
+    return query
+      select
+        a.source_position,
+        jsonb_set(
+          a.raw_payload,
+          '{items}',
+          coalesce(
+            (
+              select jsonb_agg(
+                jsonb_build_object(
+                  'id', i.id,
+                  'title', i.title,
+                  'url', i.url,
+                  'fileType', i.file_type,
+                  'relativePath', i.relative_path
+                )
+                order by i.source_position
+              )
+              from public.audio_resource_items i
+              where i.audio_resource_id = a.id
+            ),
+            case
+              when jsonb_typeof(a.raw_payload->'items') = 'array'
+                then a.raw_payload->'items'
+              else '[]'::jsonb
+            end
+          ),
+          true
+        ) as data
+      from public.audio_resources a
+      order by a.source_position;
   else
     raise exception 'Unsupported collection: %', collection_name;
   end if;
@@ -1694,8 +1726,8 @@ begin
     select coalesce(nullif(item->>'id', ''), md5('audio_resources|' || item_order::text)), coalesce(item->>'title', ''), coalesce(item->>'description', ''), coalesce(item->>'course', ''), coalesce(item->>'courseLanguage', ''), coalesce(item->>'level', ''), coalesce(nullif(item->>'accessType', ''), 'free'), coalesce(nullif(item->>'fileType', ''), 'audio'), coalesce(nullif(item->>'linkType', ''), 'clip'), coalesce(item->>'url', ''), item, item_order::integer, public.safe_timestamptz(item->>'createdAt')
     from jsonb_array_elements(p_records) with ordinality as source(item, item_order);
 
-    insert into public.audio_resource_items (id, audio_resource_id, title, url, file_type, raw_payload, source_position)
-    select coalesce(nullif(child->>'id', ''), gen_random_uuid()::text), coalesce(nullif(parent->>'id', ''), md5('audio_resources|' || parent_order::text)), coalesce(child->>'title', ''), coalesce(child->>'url', ''), coalesce(nullif(child->>'fileType', ''), coalesce(parent->>'fileType', 'audio')), child, child_order::integer
+    insert into public.audio_resource_items (id, audio_resource_id, title, url, file_type, relative_path, raw_payload, source_position)
+    select coalesce(nullif(child->>'id', ''), gen_random_uuid()::text), coalesce(nullif(parent->>'id', ''), md5('audio_resources|' || parent_order::text)), coalesce(child->>'title', ''), coalesce(child->>'url', ''), coalesce(nullif(child->>'fileType', ''), coalesce(parent->>'fileType', 'audio')), coalesce(child->>'relativePath', ''), child, child_order::integer
     from jsonb_array_elements(p_records) with ordinality as parents(parent, parent_order)
     cross join lateral jsonb_array_elements(coalesce(parent->'items', '[]'::jsonb)) with ordinality as children(child, child_order);
 
@@ -1721,6 +1753,7 @@ values (
     'audio/ogg',
     'audio/aac',
     'audio/mp4',
+    'audio/flac',
     'video/mp4',
     'application/pdf',
     'image/png',

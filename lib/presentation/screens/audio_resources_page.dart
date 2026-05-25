@@ -66,6 +66,18 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
       return;
     }
 
+    if (resource.isFolder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'لم يتم العثور على ملفات صوتية داخل هذا الفولدر',
+            textAlign: TextAlign.right,
+          ),
+        ),
+      );
+      return;
+    }
+
     final key = 'resource:${resource.id}';
     setState(() {
       if (_activeAudioKey == key) {
@@ -545,17 +557,18 @@ class _AudioResourceTile extends StatelessWidget {
                         backgroundColor: locked
                             ? AppColors.surfaceHigh
                             : AppColors.orange,
-                        foregroundColor:
-                            locked ? AppColors.textMuted : Colors.white,
+                        foregroundColor: locked
+                            ? AppColors.textMuted
+                            : Colors.white,
                       ),
                       icon: Icon(
                         locked
                             ? Icons.lock_rounded
                             : resource.isFolder
-                                ? Icons.arrow_back_ios_new_rounded
-                                : isPlaying
-                                    ? Icons.stop_rounded
-                                    : Icons.play_arrow_rounded,
+                            ? Icons.arrow_back_ios_new_rounded
+                            : isPlaying
+                            ? Icons.stop_rounded
+                            : Icons.play_arrow_rounded,
                       ),
                     ),
                   ],
@@ -822,7 +835,9 @@ String _embedUrl(String value) {
   if (openMatch != null) {
     return 'https://drive.google.com/uc?export=download&id=${openMatch.group(1)}';
   }
-  final folderMatch = RegExp(r'drive\.google\.com/drive/folders/([^/?]+)').firstMatch(url);
+  final folderMatch = RegExp(
+    r'drive\.google\.com/drive/folders/([^/?]+)',
+  ).firstMatch(url);
   if (folderMatch != null) {
     return 'https://drive.google.com/embeddedfolderview?id=${folderMatch.group(1)}#list';
   }

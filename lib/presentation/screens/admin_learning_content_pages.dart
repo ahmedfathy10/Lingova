@@ -10,6 +10,8 @@ import '../../data/models/admin_course_part.dart';
 import '../../data/models/audio_resource.dart';
 import '../../data/models/vocabulary_word.dart';
 import '../../data/services/admin_api_service.dart';
+import '../../data/services/audio_folder_picker.dart';
+import '../../data/services/auth_api_service.dart';
 import '../../data/services/content_management_api_service.dart';
 
 class AdminVocabularyPage extends StatefulWidget {
@@ -172,7 +174,8 @@ class _AdminAudioResourcesPageState extends State<AdminAudioResourcesPage> {
     if (!mounted) return;
     final result = await showDialog<AudioResource>(
       context: context,
-      builder: (_) => _AudioResourceDialog(parts: parts),
+      builder: (_) =>
+          _AudioResourceDialog(parts: parts, token: widget.session.token),
     );
     if (result == null) return;
     await _contentService.createAudioResource(widget.session.token, result);
@@ -701,8 +704,9 @@ class _VocabularyBulkDialogState extends State<_VocabularyBulkDialog> {
 
 class _AudioResourceDialog extends StatefulWidget {
   final List<AdminCoursePart> parts;
+  final String token;
 
-  const _AudioResourceDialog({required this.parts});
+  const _AudioResourceDialog({required this.parts, required this.token});
 
   @override
   State<_AudioResourceDialog> createState() => _AudioResourceDialogState();
@@ -718,6 +722,9 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
   String _accessType = 'free';
   String _fileType = 'audio';
   String _linkType = 'clip';
+  List<AudioResourceItem> _detectedAudioItems = const [];
+  String _audioFolderError = '';
+  bool _isImportingDriveFolder = false;
 
   List<AdminCoursePart> get _courses {
     final map = <String, AdminCoursePart>{};
@@ -750,6 +757,9 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
   }
 
   List<AudioResourceItem> _parseItems() {
+    if (_detectedAudioItems.isNotEmpty) {
+      return _detectedAudioItems;
+    }
     return _items.text
         .split('\n')
         .map((line) {
@@ -760,10 +770,134 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
             title: parts[0].trim(),
             url: parts[1].trim(),
             fileType: parts.length > 2 ? parts[2].trim() : _fileType,
+            relativePath: parts.length > 3 ? parts[3].trim() : '',
           );
         })
         .whereType<AudioResourceItem>()
         .toList();
+  }
+
+  Future<void> _pickAudioFolder() async {
+    final files = await pickAudioFolderFiles();
+    if (files == null) return;
+    if (files.isEmpty) {
+      setState(() {
+        _detectedAudioItems = const [];
+        _audioFolderError = 'لم يتم العثور على ملفات صوتية داخل هذا الفولدر';
+      });
+      return;
+    }
+
+    final items = files
+        .map(
+          (file) => AudioResourceItem(
+            id: '',
+            title: file.title,
+            url: file.dataUrl,
+            fileType: file.fileType,
+            relativePath: file.relativePath,
+          ),
+        )
+        .toList();
+    _applyDetectedAudioItems(items);
+  }
+
+  Future<void> _importGoogleDriveFolder() async {
+    final folderUrl = _url.text.trim();
+    if (folderUrl.isEmpty) {
+      setState(() {
+        _audioFolderError = 'اكتب رابط فولدر Google Drive أولاً';
+      });
+      return;
+    }
+
+    setState(() {
+      _isImportingDriveFolder = true;
+      _audioFolderError = '';
+    });
+    try {
+      final items = await ContentManagementApiService()
+          .importGoogleDriveAudioFolder(widget.token, folderUrl);
+      if (!mounted) return;
+      if (items.isEmpty) {
+        setState(() {
+          _detectedAudioItems = const [];
+          _audioFolderError = 'لم يتم العثور على ملفات صوتية داخل هذا الفولدر';
+        });
+        return;
+      }
+      _applyDetectedAudioItems(items);
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _audioFolderError = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _audioFolderError =
+            'تعذر قراءة فولدر Google Drive. تأكد أن الفولدر متاح للمشاركة.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isImportingDriveFolder = false);
+      }
+    }
+  }
+
+  void _applyDetectedAudioItems(List<AudioResourceItem> items) {
+    setState(() {
+      _linkType = 'folder';
+      _fileType = 'audio';
+      _audioFolderError = '';
+      _detectedAudioItems = items;
+      _items.text = items
+          .map((item) {
+            final path = item.relativePath.isEmpty
+                ? item.url
+                : item.relativePath;
+            return '${item.title} | ${item.url} | audio | $path';
+          })
+          .join('\n');
+      if (_title.text.trim().isEmpty) {
+        final firstPath = items.first.relativePath;
+        final slash = firstPath.lastIndexOf('/');
+        _title.text = slash > 0
+            ? firstPath.substring(0, slash)
+            : 'فولدر صوتيات';
+      }
+      if (_url.text.trim().isEmpty) {
+        _url.text =
+            'local-audio-folder:${DateTime.now().millisecondsSinceEpoch}';
+      }
+    });
+  }
+
+  void _submit(AdminCoursePart? selectedCourse) {
+    final items = _parseItems();
+    if (_linkType == 'folder' && items.isEmpty) {
+      setState(() {
+        _audioFolderError = 'لم يتم العثور على ملفات صوتية داخل هذا الفولدر';
+      });
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      AudioResource(
+        id: '',
+        title: _title.text.trim(),
+        description: _description.text.trim(),
+        course: selectedCourse?.course ?? '',
+        courseLanguage: selectedCourse?.language ?? '',
+        level: _level,
+        accessType: _accessType,
+        fileType: _fileType,
+        linkType: _linkType,
+        url: _url.text.trim().isEmpty && _linkType == 'folder'
+            ? 'local-audio-folder:${DateTime.now().millisecondsSinceEpoch}'
+            : _url.text.trim(),
+        items: items,
+      ),
+    );
   }
 
   @override
@@ -851,8 +985,14 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                   DropdownMenuItem(value: 'clip', child: Text('مقطع')),
                   DropdownMenuItem(value: 'folder', child: Text('فولدر')),
                 ],
-                onChanged: (value) =>
-                    setState(() => _linkType = value ?? 'clip'),
+                onChanged: (value) => setState(() {
+                  _linkType = value ?? 'clip';
+                  if (_linkType != 'folder') {
+                    _detectedAudioItems = const [];
+                    _audioFolderError = '';
+                    _items.clear();
+                  }
+                }),
               ),
               TextField(
                 controller: _url,
@@ -860,6 +1000,66 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                   labelText: 'رابط المقطع أو الفولدر',
                 ),
               ),
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _isImportingDriveFolder
+                        ? null
+                        : _importGoogleDriveFolder,
+                    icon: _isImportingDriveFolder
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_download_rounded),
+                    label: Text(
+                      _isImportingDriveFolder
+                          ? 'جاري قراءة Google Drive...'
+                          : 'استيراد من Google Drive',
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _pickAudioFolder,
+                    icon: const Icon(Icons.folder_open_rounded),
+                    label: const Text('اختيار فولدر صوتيات'),
+                  ),
+                ],
+              ),
+              if (_detectedAudioItems.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'تم العثور على ${_detectedAudioItems.length} ملف صوتي داخل الفولدر',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              if (_audioFolderError.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _audioFolderError,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
               if (_linkType == 'folder')
                 TextField(
                   controller: _items,
@@ -867,7 +1067,7 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                   maxLines: 8,
                   decoration: const InputDecoration(
                     labelText: 'ملفات الفولدر',
-                    hintText: 'Title | URL | audio',
+                    hintText: 'Title | URL | audio | relative/path.mp3',
                   ),
                 ),
             ],
@@ -880,24 +1080,7 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
           child: const Text('إلغاء'),
         ),
         FilledButton(
-          onPressed: () {
-            Navigator.pop(
-              context,
-              AudioResource(
-                id: '',
-                title: _title.text.trim(),
-                description: _description.text.trim(),
-                course: selectedCourse?.course ?? '',
-                courseLanguage: selectedCourse?.language ?? '',
-                level: _level,
-                accessType: _accessType,
-                fileType: _fileType,
-                linkType: _linkType,
-                url: _url.text.trim(),
-                items: _parseItems(),
-              ),
-            );
-          },
+          onPressed: () => _submit(selectedCourse),
           child: const Text('حفظ'),
         ),
       ],

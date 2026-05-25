@@ -95,6 +95,28 @@ class ContentManagementApiService {
     throw AuthApiException(_readMessage(_readJson(response.body)));
   }
 
+  Future<List<AudioResourceItem>> importGoogleDriveAudioFolder(
+    String token,
+    String folderUrl,
+  ) async {
+    final response = await postJson(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/api/admin/audio-resources/google-drive-folder',
+      ),
+      {'folderUrl': folderUrl},
+      headers: _headers(token),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final items = json['items'] as List? ?? const [];
+      return items
+          .whereType<Map<String, dynamic>>()
+          .map(AudioResourceItem.fromJson)
+          .toList();
+    }
+    throw AuthApiException(_readMessage(json));
+  }
+
   Future<void> deleteAudioResource(String token, String id) async {
     final response = await postJson(
       Uri.parse('${ApiConfig.baseUrl}/api/admin/audio-resources/$id/delete'),

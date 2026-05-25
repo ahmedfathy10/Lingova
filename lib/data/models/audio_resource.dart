@@ -68,12 +68,14 @@ class AudioResourceItem {
   final String title;
   final String url;
   final String fileType;
+  final String relativePath;
 
   const AudioResourceItem({
     required this.id,
     required this.title,
     required this.url,
     required this.fileType,
+    this.relativePath = '',
   });
 
   factory AudioResourceItem.fromJson(Map<String, dynamic> json) {
@@ -82,10 +84,16 @@ class AudioResourceItem {
       title: json['title']?.toString() ?? '',
       url: json['url']?.toString() ?? '',
       fileType: json['fileType']?.toString() ?? 'audio',
+      relativePath: json['relativePath']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'title': title, 'url': url, 'fileType': fileType};
+    return {
+      'title': title,
+      'url': url,
+      'fileType': fileType,
+      if (relativePath.isNotEmpty) 'relativePath': relativePath,
+    };
   }
 }

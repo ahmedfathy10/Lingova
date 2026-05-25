@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'admin_support_chat_page.dart';
 import 'admin_community_page.dart';
@@ -27,6 +28,8 @@ import '../../data/services/watch_progress_api_service.dart';
 import 'admin_login_screen.dart';
 import 'certificate_page.dart';
 import 'book_viewer_screen.dart';
+
+part 'admin_notifications_widgets.dart';
 
 ImageProvider<Object>? _courseImageProvider(String imageDataUrl) {
   if (imageDataUrl.isEmpty) {
@@ -182,7 +185,12 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     final isWide = MediaQuery.sizeOf(context).width >= 850;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF050912),
       appBar: AppBar(
+        backgroundColor: const Color(0xFF050912),
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: const Text('لوحة تحكم Lingova'),
         leading: Builder(
           builder: (context) => IconButton(
@@ -203,100 +211,148 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
         ],
       ),
       drawer: _buildDrawer(),
-      body: Row(
-        children: [
-          if (isWide)
-            NavigationRail(
-              selectedIndex: _index,
-              onDestinationSelected: (value) => setState(() => _index = value),
-              labelType: NavigationRailLabelType.all,
-              scrollable: true,
-              backgroundColor: AppColors.surface,
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard_rounded),
-                  label: Text('الداشبورد'),
+      body: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Row(
+          children: [
+            if (isWide)
+              Container(
+                width: 122,
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: .060),
+                      const Color(0xFF0A111D).withValues(alpha: .92),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .10),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .34),
+                      blurRadius: 28,
+                      offset: const Offset(0, 18),
+                    ),
+                  ],
                 ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.history_outlined),
-                  selectedIcon: Icon(Icons.history_rounded),
-                  label: Text('سجل النشاط'),
+                child: NavigationRail(
+                  selectedIndex: _index,
+                  onDestinationSelected: (value) =>
+                      setState(() => _index = value),
+                  labelType: NavigationRailLabelType.all,
+                  scrollable: true,
+                  backgroundColor: Colors.transparent,
+                  indicatorColor: AppColors.orange.withValues(alpha: .18),
+                  selectedIconTheme: const IconThemeData(
+                    color: Color(0xFFFFB15A),
+                    size: 25,
+                  ),
+                  unselectedIconTheme: const IconThemeData(
+                    color: Color(0xFFC7CEDA),
+                    size: 24,
+                  ),
+                  selectedLabelTextStyle: const TextStyle(
+                    color: Color(0xFFFFB15A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                  unselectedLabelTextStyle: const TextStyle(
+                    color: Color(0xFFC7CEDA),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard_rounded),
+                      label: Text('الداشبورد'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.history_outlined),
+                      selectedIcon: Icon(Icons.history_rounded),
+                      label: Text('سجل النشاط'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.people_outline_rounded),
+                      selectedIcon: Icon(Icons.people_rounded),
+                      label: Text('المستخدمين'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.receipt_long_outlined),
+                      selectedIcon: Icon(Icons.receipt_long_rounded),
+                      label: Text('طلبات الاشتراك'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.quiz_outlined),
+                      selectedIcon: Icon(Icons.quiz_rounded),
+                      label: Text('الامتحانات'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.assignment_turned_in_outlined),
+                      selectedIcon: Icon(Icons.assignment_turned_in_rounded),
+                      label: Text('تقارير الامتحانات'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.auto_stories_outlined),
+                      selectedIcon: Icon(Icons.auto_stories_rounded),
+                      label: Text('الشهادات'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.video_library_outlined),
+                      selectedIcon: Icon(Icons.video_library_rounded),
+                      label: Text('الكورسات'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.menu_book_outlined),
+                      selectedIcon: Icon(Icons.menu_book_rounded),
+                      label: Text('الكتب'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.translate_outlined),
+                      selectedIcon: Icon(Icons.translate_rounded),
+                      label: Text('Vocabulary'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.headphones_outlined),
+                      selectedIcon: Icon(Icons.headphones_rounded),
+                      label: Text('الصوتيات'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.forum_outlined),
+                      selectedIcon: Icon(Icons.forum_rounded),
+                      label: Text('الأسئلة'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.support_agent_outlined),
+                      selectedIcon: Icon(Icons.support_agent_rounded),
+                      label: Text('الشات'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.groups_outlined),
+                      selectedIcon: Icon(Icons.groups_rounded),
+                      label: Text('المجتمع'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.notifications_outlined),
+                      selectedIcon: Icon(Icons.notifications_rounded),
+                      label: Text('الإشعارات'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.dynamic_form_outlined),
+                      selectedIcon: Icon(Icons.dynamic_form_rounded),
+                      label: Text('فورم التسجيل'),
+                    ),
+                  ],
                 ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.people_outline_rounded),
-                  selectedIcon: Icon(Icons.people_rounded),
-                  label: Text('المستخدمين'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.receipt_long_outlined),
-                  selectedIcon: Icon(Icons.receipt_long_rounded),
-                  label: Text('طلبات الاشتراك'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.quiz_outlined),
-                  selectedIcon: Icon(Icons.quiz_rounded),
-                  label: Text('الامتحانات'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.assignment_turned_in_outlined),
-                  selectedIcon: Icon(Icons.assignment_turned_in_rounded),
-                  label: Text('تقارير الامتحانات'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.auto_stories_outlined),
-                  selectedIcon: Icon(Icons.auto_stories_rounded),
-                  label: Text('الشهادات'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.video_library_outlined),
-                  selectedIcon: Icon(Icons.video_library_rounded),
-                  label: Text('الكورسات'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.menu_book_outlined),
-                  selectedIcon: Icon(Icons.menu_book_rounded),
-                  label: Text('الكتب'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.translate_outlined),
-                  selectedIcon: Icon(Icons.translate_rounded),
-                  label: Text('Vocabulary'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.headphones_outlined),
-                  selectedIcon: Icon(Icons.headphones_rounded),
-                  label: Text('الصوتيات'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.forum_outlined),
-                  selectedIcon: Icon(Icons.forum_rounded),
-                  label: Text('الأسئلة'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.support_agent_outlined),
-                  selectedIcon: Icon(Icons.support_agent_rounded),
-                  label: Text('الشات'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.groups_outlined),
-                  selectedIcon: Icon(Icons.groups_rounded),
-                  label: Text('المجتمع'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.notifications_outlined),
-                  selectedIcon: Icon(Icons.notifications_rounded),
-                  label: Text('الإشعارات'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.dynamic_form_outlined),
-                  selectedIcon: Icon(Icons.dynamic_form_rounded),
-                  label: Text('فورم التسجيل'),
-                ),
-              ],
-            ),
-          Expanded(child: pages[_index]),
-        ],
+              ),
+            Expanded(child: pages[_index]),
+          ],
+        ),
       ),
     );
   }
@@ -3703,6 +3759,9 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
   late Future<List<AdminUser>> _usersFuture;
   bool _isSending = false;
   String _query = '';
+  String _typeFilter = 'all';
+  int _page = 0;
+  int _pageSize = 10;
 
   @override
   void initState() {
@@ -3715,6 +3774,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
     setState(() {
       _notificationsFuture = _service.getNotifications(widget.session.token);
       _usersFuture = _service.getUsers(widget.session.token);
+      _page = 0;
     });
   }
 
@@ -3806,14 +3866,20 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
     List<AdminAppNotification> notifications,
   ) {
     final query = _query.trim().toLowerCase();
-    if (query.isEmpty) return notifications;
-
     return notifications.where((notification) {
+      if (_typeFilter != 'all' && notification.type != _typeFilter) {
+        return false;
+      }
+      if (query.isEmpty) return true;
       final text =
           '${notification.title} ${notification.body} ${notification.type} ${notification.createdBy}'
               .toLowerCase();
       return text.contains(query);
     }).toList();
+  }
+
+  DateTime? _notificationDate(AdminAppNotification notification) {
+    return DateTime.tryParse(notification.createdAt);
   }
 
   @override
@@ -3825,477 +3891,157 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
         final allNotifications =
             snapshot.data ?? const <AdminAppNotification>[];
         final notifications = _filterNotifications(allNotifications);
-
+        final now = DateTime.now();
         final total = allNotifications.length;
-        final thisMonth = allNotifications.where((n) {
-          final now = DateTime.now();
-          final label = n.createdAt;
-          return label.contains(now.year.toString()) ||
-              label.contains('${now.month}');
+        final thisMonth = allNotifications.where((notification) {
+          final date = _notificationDate(notification);
+          return date != null &&
+              date.year == now.year &&
+              date.month == now.month;
         }).length;
+        final int totalPages = notifications.isEmpty
+            ? 1
+            : (notifications.length / _pageSize).ceil();
+        final int page = _page.clamp(0, totalPages - 1).toInt();
+        final pagedNotifications = notifications
+            .skip(page * _pageSize)
+            .take(_pageSize)
+            .toList(growable: false);
 
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 28),
-          children: [
-            _PageTitle(
-              title: 'الإشعارات',
-              subtitle: 'إدارة إشعارات الطلاب ومتابعة القراءة والاستهداف.',
-              action: Wrap(
-                textDirection: TextDirection.rtl,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _ToolbarButton(
-                    onPressed: isLoading ? null : _refresh,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: 'تحديث',
+        if (page != _page) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _page = page);
+          });
+        }
+
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Container(
+            color: AppColors.background,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(34, 22, 34, 30),
+              children: [
+                DefaultTextStyle.merge(
+                  textAlign: TextAlign.right,
+                  child: _NotificationHero(
+                    isSending: _isSending,
+                    isLoading: isLoading,
+                    onCreate: _createNotification,
+                    onRefresh: _refresh,
                   ),
-                  _ToolbarButton(
-                    onPressed: _isSending ? null : _createNotification,
-                    icon: _isSending
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.add_alert_rounded),
-                    label: _isSending ? 'جاري الإرسال...' : 'إرسال إشعار',
-                    filled: true,
+                ),
+                const SizedBox(height: 24),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardWidth = constraints.maxWidth >= 1100
+                        ? (constraints.maxWidth - 42) / 4
+                        : constraints.maxWidth >= 760
+                        ? (constraints.maxWidth - 14) / 2
+                        : constraints.maxWidth;
+                    return Wrap(
+                      spacing: 14,
+                      runSpacing: 14,
+                      children: [
+                        _NotificationStatCard(
+                          width: cardWidth,
+                          title: 'إجمالي الإشعارات',
+                          subtitle: 'كل الإشعارات',
+                          value: total.toString(),
+                          icon: Icons.notifications_rounded,
+                          color: const Color(0xFF2DD4BF),
+                        ),
+                        _NotificationStatCard(
+                          width: cardWidth,
+                          title: 'غير مقروءة',
+                          subtitle: 'تحتاج متابعة',
+                          value: notifications.length.toString(),
+                          icon: Icons.mail_outline_rounded,
+                          color: AppColors.orange,
+                          highlighted: true,
+                        ),
+                        _NotificationStatCard(
+                          width: cardWidth,
+                          title: 'تم قراءتها',
+                          subtitle: 'من واقع بيانات القراء',
+                          value: 'Live',
+                          icon: Icons.check_circle_outline_rounded,
+                          color: const Color(0xFF3ED47E),
+                        ),
+                        _NotificationStatCard(
+                          width: cardWidth,
+                          title: 'هذا الشهر',
+                          subtitle: 'تم إرسالها',
+                          value: thisMonth.toString(),
+                          icon: Icons.calendar_month_rounded,
+                          color: const Color(0xFF3B82F6),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 22),
+                _NotificationControls(
+                  query: _query,
+                  typeFilter: _typeFilter,
+                  onQueryChanged: (value) => setState(() {
+                    _query = value;
+                    _page = 0;
+                  }),
+                  onFilterChanged: (value) => setState(() {
+                    _typeFilter = value;
+                    _page = 0;
+                  }),
+                ),
+                const SizedBox(height: 22),
+                if (isLoading)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(44),
+                      child: CircularProgressIndicator(color: AppColors.orange),
+                    ),
+                  )
+                else if (snapshot.hasError)
+                  const _ErrorState(message: 'تعذر تحميل الإشعارات.')
+                else if (notifications.isEmpty)
+                  const _PremiumGlass(
+                    padding: EdgeInsets.all(28),
+                    child: Text(
+                      'لا توجد إشعارات مطابقة.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFFAAB4C4)),
+                    ),
+                  )
+                else ...[
+                  ...pagedNotifications.map(
+                    (notification) => _AdminNotificationCard(
+                      notification: notification,
+                      onDelete: () => _deleteNotification(notification),
+                      token: widget.session.token,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _NotificationPagination(
+                    page: page,
+                    totalPages: totalPages,
+                    totalItems: notifications.length,
+                    pageSize: _pageSize,
+                    onPageChanged: (value) => setState(() => _page = value),
+                    onPageSizeChanged: (value) => setState(() {
+                      _pageSize = value;
+                      _page = 0;
+                    }),
                   ),
                 ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Wrap(
-              spacing: 14,
-              runSpacing: 14,
-              textDirection: TextDirection.rtl,
-              children: [
-                _NotificationStatCard(
-                  title: 'إجمالي الإشعارات',
-                  value: total.toString(),
-                  icon: Icons.notifications_active_rounded,
-                  color: AppColors.orange,
-                ),
-                _NotificationStatCard(
-                  title: 'هذا الشهر',
-                  value: thisMonth.toString(),
-                  icon: Icons.calendar_month_rounded,
-                  color: Colors.blueAccent,
-                ),
-                _NotificationStatCard(
-                  title: 'المتابعة',
-                  value: 'Live',
-                  icon: Icons.visibility_rounded,
-                  color: Colors.green,
-                ),
               ],
             ),
-
-            const SizedBox(height: 18),
-
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xff111827),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white.withValues(alpha: .06)),
-              ),
-              child: TextField(
-                textAlign: TextAlign.right,
-                textDirection: TextDirection.rtl,
-                onChanged: (value) => setState(() => _query = value),
-                decoration: InputDecoration(
-                  hintText: 'ابحث في الإشعارات...',
-                  border: InputBorder.none,
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 18),
-
-            if (isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (snapshot.hasError)
-              const _ErrorState(message: 'تعذر تحميل الإشعارات.')
-            else if (notifications.isEmpty)
-              _Panel(
-                child: Text(
-                  'لا توجد إشعارات مطابقة.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textMuted),
-                ),
-              )
-            else
-              ...notifications.map(
-                (notification) => _AdminNotificationCard(
-                  notification: notification,
-                  onDelete: () => _deleteNotification(notification),
-                  token: widget.session.token,
-                ),
-              ),
-          ],
+          ),
         );
       },
     );
   }
 }
 
-class _NotificationStatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _NotificationStatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 250,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xff111827),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color.withValues(alpha: .22)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .25),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Row(
-        textDirection: TextDirection.rtl,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .14),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  title,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(color: AppColors.textMuted),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminNotificationCard extends StatefulWidget {
-  final AdminAppNotification notification;
-  final VoidCallback onDelete;
-  final String token;
-
-  const _AdminNotificationCard({
-    required this.notification,
-    required this.onDelete,
-    required this.token,
-  });
-
-  @override
-  State<_AdminNotificationCard> createState() => _AdminNotificationCardState();
-}
-
-class _AdminNotificationCardState extends State<_AdminNotificationCard> {
-  final AdminApiService _service = AdminApiService();
-  bool _loadingReaders = false;
-  List<Map<String, dynamic>> _readers = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchReaders();
-  }
-
-  Future<void> _fetchReaders() async {
-    setState(() => _loadingReaders = true);
-    try {
-      final readers = await _service.getNotificationReaders(
-        widget.token,
-        widget.notification.id,
-      );
-      if (!mounted) return;
-      setState(() => _readers = readers);
-    } catch (_) {
-      // ignore errors silently; UI will show empty state
-    } finally {
-      if (mounted) setState(() => _loadingReaders = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
-          colors: [Color(0xff151C2A), Color(0xff0B1220)],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        border: Border.all(color: Colors.white24.withValues(alpha: .08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .32),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 20, 84, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  textDirection: TextDirection.rtl,
-                  children: [
-                    _StatusPill(
-                      text: _typeLabel(widget.notification.type),
-                      color: AppColors.orange,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        widget.notification.title,
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                Text(
-                  widget.notification.body,
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(height: 1.55, fontSize: 15),
-                ),
-
-                const SizedBox(height: 14),
-
-                Wrap(
-                  textDirection: TextDirection.rtl,
-                  spacing: 16,
-                  runSpacing: 8,
-                  children: [
-                    _NotificationMeta(
-                      icon: Icons.schedule_rounded,
-                      text: widget.notification.createdAt.isEmpty
-                          ? 'وقت الإرسال غير متاح'
-                          : widget.notification.createdAt,
-                    ),
-                    _NotificationMeta(
-                      icon: Icons.person_rounded,
-                      text: 'أرسل بواسطة ${widget.notification.createdBy}',
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 18),
-
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .035),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: .06),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        textDirection: TextDirection.rtl,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: .12),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.mark_email_read_rounded,
-                              color: Colors.green,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                const Text(
-                                  'القراء',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: _loadingReaders
-                                      ? const SizedBox(
-                                          height: 18,
-                                          width: 18,
-                                          child:
-                                              CircularProgressIndicator(strokeWidth: 2),
-                                        )
-                                      : Text(
-                                          _readers.isEmpty
-                                              ? 'لم يقرأه أي طالب بعد'
-                                              : '${_readers.length} قرأ/قرأت',
-                                          textAlign: TextAlign.right,
-                                          style: TextStyle(
-                                            color: AppColors.textMuted,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (!_loadingReaders && _readers.isNotEmpty)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: _readers
-                              .map((r) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 4, horizontal: 8),
-                                    child: Text(
-                                      r['fullName']?.toString() ?? r['id'] ?? '',
-                                      textAlign: TextAlign.right,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ))
-                              .toList(),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Positioned(
-            top: 18,
-            left: 18,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: Colors.redAccent.withValues(alpha: .25),
-                ),
-              ),
-                child: IconButton(
-                tooltip: 'حذف الإشعار',
-                onPressed: widget.onDelete,
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: Colors.redAccent,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _typeLabel(String type) {
-    switch (type) {
-      case 'course':
-        return 'كورس';
-      case 'lesson':
-        return 'درس';
-      case 'exam':
-        return 'اختبار';
-      case 'payment':
-        return 'دفع';
-      default:
-        return 'عام';
-    }
-  }
-}
-
-class _NotificationMeta extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _NotificationMeta({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      textDirection: TextDirection.rtl,
-      children: [
-        Icon(icon, size: 17, color: AppColors.orange),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
+// Premium notification widgets are implemented in admin_notifications_widgets.dart.
 
 class _NotificationFormDialog extends StatefulWidget {
   final Future<List<AdminUser>> usersFuture;

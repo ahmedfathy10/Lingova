@@ -61,6 +61,7 @@ const supabaseKey =
   process.env.SUPABASE_KEY ||
   '';
 const useSupabase = Boolean(supabaseUrl && supabaseKey);
+const googleDriveApiKey = process.env.GOOGLE_DRIVE_API_KEY || '';
 
 async function ensureStore() {
   if (useSupabase) {
@@ -952,11 +953,34 @@ function publicAudioResource(resource) {
           title: item.title || '',
           url: item.url || '',
           fileType: item.fileType || resource.fileType || 'audio',
+          relativePath: item.relativePath || '',
         }))
       : [],
     createdAt: resource.createdAt || '',
     createdBy: resource.createdBy || 'Admin',
   };
+}
+
+async function withResolvedAudioItems(resource) {
+  const existingItems = Array.isArray(resource.items) ? resource.items : [];
+  if (existingItems.length > 0) {
+    return resource;
+  }
+
+  const linkType = String(resource.linkType || 'clip').trim();
+  const folderId = linkType === 'folder'
+    ? parseGoogleDriveFolderId(resource.url)
+    : '';
+  if (!folderId || !googleDriveApiKey) {
+    return resource;
+  }
+
+  try {
+    const items = await listGoogleDriveFolderAudio(folderId);
+    return items.length > 0 ? { ...resource, items } : resource;
+  } catch {
+    return resource;
+  }
 }
 
 function publicWatchProgress(record) {
@@ -3850,8 +3874,11 @@ async function deleteVocabularyWord(request, response, wordId) {
 async function listAudioResources(request, response) {
   try {
     const resources = await readAudioResources();
+    const resolvedResources = await Promise.all(
+      resources.map((resource) => withResolvedAudioItems(resource))
+    );
     sendJson(response, 200, {
-      resources: resources.map(publicAudioResource),
+      resources: resolvedResources.map(publicAudioResource),
     });
   } catch {
     sendJson(response, 500, { message: 'تعذر تحميل الصوتيات.' });
@@ -3883,14 +3910,22 @@ async function createAudioResource(request, response) {
     }
 
     const rawItems = Array.isArray(payload.items) ? payload.items : [];
-    const items = rawItems
+    let items = rawItems
       .map((item) => ({
         id: crypto.randomUUID(),
         title: String(item.title || '').trim(),
         url: String(item.url || '').trim(),
         fileType: String(item.fileType || payload.fileType || 'audio').trim(),
+        relativePath: String(item.relativePath || '').trim(),
       }))
       .filter((item) => item.title && item.url);
+
+    if (linkType === 'folder' && items.length === 0) {
+      const folderId = parseGoogleDriveFolderId(urlValue);
+      if (folderId && googleDriveApiKey) {
+        items = await listGoogleDriveFolderAudio(folderId);
+      }
+    }
 
     const resources = await readAudioResources();
     const resource = {
@@ -3913,6 +3948,101 @@ async function createAudioResource(request, response) {
     sendJson(response, 201, { resource: publicAudioResource(resource) });
   } catch {
     sendJson(response, 500, { message: 'تعذر إضافة الصوت.' });
+  }
+}
+
+function parseGoogleDriveFolderId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const folderMatch = raw.match(/drive\.google\.com\/drive\/folders\/([^/?#]+)/);
+  if (folderMatch) return folderMatch[1];
+  const queryMatch = raw.match(/[?&]id=([^&#]+)/);
+  if (queryMatch) return queryMatch[1];
+  return /^[a-zA-Z0-9_-]{10,}$/.test(raw) ? raw : '';
+}
+
+function googleDriveAudioMime(file) {
+  const name = String(file.name || '').toLowerCase();
+  const mimeType = String(file.mimeType || '').toLowerCase();
+  if (mimeType.startsWith('audio/')) return true;
+  return ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'].some((ext) =>
+    name.endsWith(ext)
+  );
+}
+
+async function listGoogleDriveFolderAudio(folderId, prefix = '') {
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+  const fields = encodeURIComponent(
+    'nextPageToken,files(id,name,mimeType)'
+  );
+  const items = [];
+  let pageToken = '';
+
+  do {
+    const page = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+    const driveResponse = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&pageSize=1000${page}&key=${encodeURIComponent(googleDriveApiKey)}`
+    );
+    if (!driveResponse.ok) {
+      throw new Error(`Google Drive API failed: ${driveResponse.status}`);
+    }
+    const json = await driveResponse.json();
+    const files = Array.isArray(json.files) ? json.files : [];
+    for (const file of files) {
+      const name = String(file.name || '').trim();
+      if (!name) continue;
+      const relativePath = prefix ? `${prefix}/${name}` : name;
+      if (file.mimeType === 'application/vnd.google-apps.folder') {
+        items.push(...(await listGoogleDriveFolderAudio(file.id, relativePath)));
+      } else if (googleDriveAudioMime(file)) {
+        items.push({
+          title: name.replace(/\.[^.]+$/, ''),
+          url: `https://drive.google.com/uc?export=download&id=${file.id}`,
+          fileType: 'audio',
+          relativePath,
+        });
+      }
+    }
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+
+  return items;
+}
+
+async function importGoogleDriveAudioFolder(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  if (!googleDriveApiKey) {
+    sendJson(response, 400, {
+      message: 'GOOGLE_DRIVE_API_KEY غير مضبوط في إعدادات الباك إند.',
+    });
+    return;
+  }
+
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const folderId = parseGoogleDriveFolderId(payload.folderUrl || payload.url);
+    if (!folderId) {
+      sendJson(response, 400, { message: 'رابط فولدر Google Drive غير صحيح.' });
+      return;
+    }
+
+    const items = await listGoogleDriveFolderAudio(folderId);
+    if (items.length === 0) {
+      sendJson(response, 200, {
+        items: [],
+        count: 0,
+        message: 'لم يتم العثور على ملفات صوتية داخل هذا الفولدر',
+      });
+      return;
+    }
+
+    sendJson(response, 200, { items, count: items.length });
+  } catch (error) {
+    sendJson(response, 500, {
+      message: 'تعذر قراءة فولدر Google Drive. تأكد أن الفولدر متاح للمشاركة.',
+    });
   }
 }
 
@@ -4922,6 +5052,13 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === 'POST') {
       await createAudioResource(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/admin/audio-resources/google-drive-folder') {
+    if (request.method === 'POST') {
+      await importGoogleDriveAudioFolder(request, response);
       return;
     }
   }
