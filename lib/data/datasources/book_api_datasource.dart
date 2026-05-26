@@ -6,19 +6,14 @@ import '../services/auth_http_client.dart';
 
 class BookApiDataSource {
   Future<List<Book>> getBooks() async {
-    final response = await getJson(
-      Uri.parse('${ApiConfig.baseUrl}/api/books'),
-    );
+    final response = await getJson(Uri.parse('${ApiConfig.baseUrl}/api/books'));
     if (response.statusCode != 200) {
       throw Exception('تعذر تحميل الكتب.');
     }
 
     final json = jsonDecode(response.body);
     final books = json['books'] as List? ?? const [];
-    return books
-        .whereType<Map<String, dynamic>>()
-        .map(Book.fromJson)
-        .toList();
+    return books.whereType<Map<String, dynamic>>().map(Book.fromJson).toList();
   }
 
   Future<Book?> getBookById(String id) async {

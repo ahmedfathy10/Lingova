@@ -129,6 +129,18 @@ class ContentManagementApiService {
     throw AuthApiException(_readMessage(_readJson(response.body)));
   }
 
+  Future<Map<String, dynamic>> auditAudioResources(String token) async {
+    final response = await getJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/audio-resources/audit'),
+      headers: _headers(token),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode == 200) {
+      return json;
+    }
+    throw AuthApiException(_readMessage(json));
+  }
+
   Map<String, String> _headers(String token) {
     return {'Authorization': 'Bearer $token'};
   }

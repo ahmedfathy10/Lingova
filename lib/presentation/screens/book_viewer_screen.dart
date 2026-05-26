@@ -1,7 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher_string.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../domain/entities/book.dart';
 
@@ -15,7 +13,6 @@ class BookViewerScreen extends StatefulWidget {
 }
 
 class _BookViewerScreenState extends State<BookViewerScreen> {
-  late final WebViewController _controller;
   late final String _bookUrl;
   bool _isLaunching = false;
 
@@ -23,26 +20,7 @@ class _BookViewerScreenState extends State<BookViewerScreen> {
   void initState() {
     super.initState();
     _bookUrl = _normalizeBookUrl(widget.book.url);
-
-    if (kIsWeb) {
-      _launchUrl();
-    } else {
-      _controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(const Color(0x00000000))
-        ..setNavigationDelegate(
-          NavigationDelegate(
-            onProgress: (int progress) {},
-            onPageStarted: (String url) {},
-            onPageFinished: (String url) {},
-            onWebResourceError: (WebResourceError error) {},
-            onNavigationRequest: (NavigationRequest request) {
-              return NavigationDecision.navigate;
-            },
-          ),
-        )
-        ..loadRequest(Uri.parse(_bookUrl));
-    }
+    _launchUrl();
   }
 
   String _normalizeBookUrl(String url) {
@@ -66,6 +44,7 @@ class _BookViewerScreenState extends State<BookViewerScreen> {
 
     final success = await launchUrlString(
       _bookUrl,
+      mode: LaunchMode.externalApplication,
       webOnlyWindowName: '_blank',
     );
 
@@ -88,23 +67,21 @@ class _BookViewerScreenState extends State<BookViewerScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: Text(widget.book.title)),
-        body: kIsWeb
-            ? Center(
-                child: _isLaunching
-                    ? const CircularProgressIndicator()
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('تم فتح الكتاب في نافذة جديدة.'),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _launchUrl,
-                            child: const Text('إعادة فتح الرابط'),
-                          ),
-                        ],
-                      ),
-              )
-            : WebViewWidget(controller: _controller),
+        body: Center(
+          child: _isLaunching
+              ? const CircularProgressIndicator()
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('سيتم فتح الكتاب في مشغل/متصفح خارجي.'),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _launchUrl,
+                      child: const Text('إعادة فتح الرابط'),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }

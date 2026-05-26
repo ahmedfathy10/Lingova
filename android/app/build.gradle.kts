@@ -47,6 +47,23 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    applicationVariants.all {
+        if (buildType.name == "release") {
+            val appName = when (flavorName?.lowercase()) {
+                "user" -> "Lingova User"
+                "admin" -> "Lingova Admin"
+                else -> "Lingova"
+            }
+            val version = versionName ?: defaultConfig.versionName ?: "1.0"
+            outputs.all { output ->
+                if (output is com.android.build.gradle.api.ApkVariantOutput) {
+                    output.outputFileName = "$appName V$version.apk"
+                }
+                true
+            }
+        }
+    }
 }
 
 flutter {

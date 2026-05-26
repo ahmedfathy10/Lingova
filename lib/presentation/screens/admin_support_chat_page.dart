@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, unnecessary_underscores
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -8,10 +10,7 @@ import '../../data/services/support_api_service.dart';
 class AdminSupportChatPage extends StatefulWidget {
   final String token;
 
-  const AdminSupportChatPage({
-    super.key,
-    required this.token,
-  });
+  const AdminSupportChatPage({super.key, required this.token});
 
   @override
   State<AdminSupportChatPage> createState() => _AdminSupportChatPageState();
@@ -224,12 +223,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.right,
-        ),
-      ),
+      SnackBar(content: Text(message, textAlign: TextAlign.right)),
     );
   }
 
@@ -238,9 +232,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
       width: 360,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(
-          left: BorderSide(color: Colors.grey.shade300),
-        ),
+        border: Border(left: BorderSide(color: Colors.grey.shade300)),
       ),
       child: Column(
         children: [
@@ -271,10 +263,8 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
                   )
                 : ListView.separated(
                     itemCount: _conversations.length,
-                    separatorBuilder: (_, __) => Divider(
-                      height: 1,
-                      color: Colors.grey.shade200,
-                    ),
+                    separatorBuilder: (_, __) =>
+                        Divider(height: 1, color: Colors.grey.shade200),
                     itemBuilder: (context, index) {
                       final conversation = _conversations[index];
                       final isSelected =
@@ -297,9 +287,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
                                   radius: 24,
                                   backgroundColor: primary,
                                   child: Text(
-                                    _safeFirstLetter(
-                                      conversation.studentName,
-                                    ),
+                                    _safeFirstLetter(conversation.studentName),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w900,
@@ -332,8 +320,9 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color:
-                                              unread > 0 ? textMain : textMuted,
+                                          color: unread > 0
+                                              ? textMain
+                                              : textMuted,
                                           fontWeight: unread > 0
                                               ? FontWeight.w800
                                               : FontWeight.w500,
@@ -351,8 +340,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
-                                        color:
-                                            unread > 0 ? accent : textMuted,
+                                        color: unread > 0 ? accent : textMuted,
                                       ),
                                     ),
                                     const SizedBox(height: 7),
@@ -413,8 +401,9 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
           ],
         ),
         child: Column(
-          crossAxisAlignment:
-              isAdmin ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isAdmin
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             Text(
               message.message,
@@ -464,10 +453,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
         child: Center(
           child: Text(
             'اختر محادثة من القائمة',
-            style: TextStyle(
-              color: textMuted,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(color: textMuted, fontWeight: FontWeight.w700),
           ),
         ),
       );
@@ -548,9 +534,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(
-                top: BorderSide(color: Colors.grey.shade300),
-              ),
+              border: Border(top: BorderSide(color: Colors.grey.shade300)),
             ),
             child: Row(
               children: [
@@ -612,10 +596,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
                               color: Colors.white,
                             ),
                           )
-                        : const Icon(
-                            Icons.send_rounded,
-                            color: Colors.white,
-                          ),
+                        : const Icon(Icons.send_rounded, color: Colors.white),
                   ),
                 ),
               ],
@@ -673,9 +654,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: primary),
-      );
+      return const Center(child: CircularProgressIndicator(color: primary));
     }
 
     final isNarrow = MediaQuery.sizeOf(context).width < 720;
@@ -686,12 +665,7 @@ class _AdminSupportChatPageState extends State<AdminSupportChatPage> {
         color: pageBg,
         child: isNarrow
             ? _buildMobileLayout()
-            : Row(
-                children: [
-                  _buildConversationsList(),
-                  _buildChatArea(),
-                ],
-              ),
+            : Row(children: [_buildConversationsList(), _buildChatArea()]),
       ),
     );
   }

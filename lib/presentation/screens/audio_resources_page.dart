@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api_config.dart';
 import '../../core/app_colors.dart';
 import '../../data/models/audio_resource.dart';
 import '../../data/models/auth_user.dart';
@@ -33,6 +34,7 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
   late Future<List<AudioResource>> _future;
   AuthUser? _user;
   String? _activeAudioKey;
+  // ignore: unused_field
   _InlineAudioData? _activeAudio;
 
   @override
@@ -53,6 +55,7 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
     return user.hasCourse(resource.courseLanguage, resource.course);
   }
 
+  // ignore: unused_element
   void _openResource(AudioResource resource) {
     if (!_canOpen(resource)) {
       _showLockedMessage();
@@ -78,6 +81,13 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
       return;
     }
 
+    final audioUrl = _resolveAudioUrl(resource.url);
+    if (audioUrl == null) {
+      _showInvalidAudioUrl(context);
+      return;
+    }
+    debugPrint('AUDIO URL = $audioUrl');
+
     final key = 'resource:${resource.id}';
     setState(() {
       if (_activeAudioKey == key) {
@@ -87,7 +97,7 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
         _activeAudioKey = key;
         _activeAudio = _InlineAudioData(
           title: resource.title,
-          url: resource.url,
+          url: audioUrl,
           fileType: resource.fileType,
           subtitle: '${resource.course} - ${resource.level}',
         );
@@ -106,6 +116,34 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
     );
   }
 
+  List<AudioResource> _resourcesForEnrollment(
+    UserEnrollment enrollment,
+    List<AudioResource> resources,
+  ) {
+    return resources
+        .where(
+          (resource) =>
+              resource.courseLanguage == enrollment.courseLanguage &&
+              resource.course == enrollment.courseTitle,
+        )
+        .toList();
+  }
+
+  void _openCourseAudio(
+    UserEnrollment enrollment,
+    List<AudioResource> resources,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _StudentCourseAudioPage(
+          enrollment: enrollment,
+          resources: _resourcesForEnrollment(enrollment, resources),
+        ),
+      ),
+    );
+  }
+
+  // ignore: unused_element
   Map<String, Map<String, List<AudioResource>>> _group(
     List<AudioResource> resources,
   ) {
@@ -138,9 +176,26 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
                 return const _AudioEmptyState();
               }
 
-              final grouped = _group(resources);
-              final folders = resources.where((item) => item.isFolder).length;
-              final paid = resources.where((item) => item.isPaid).length;
+              final user = _user;
+              final enrollments = user?.enrollments ?? const <UserEnrollment>[];
+              if (user == null || enrollments.isEmpty) {
+                return const _PurchasedAudioEmptyState();
+              }
+
+              final purchasedResources = resources
+                  .where(
+                    (resource) => user.hasCourse(
+                      resource.courseLanguage,
+                      resource.course,
+                    ),
+                  )
+                  .toList();
+              final folders = purchasedResources
+                  .where((item) => item.isFolder)
+                  .length;
+              final paid = purchasedResources
+                  .where((item) => item.isPaid)
+                  .length;
 
               return RefreshIndicator(
                 onRefresh: () async {
@@ -153,26 +208,334 @@ class _AudioResourcesPageState extends State<AudioResourcesPage> {
                     const _AudioHeader(),
                     const SizedBox(height: 16),
                     _AudioStatsBar(
-                      total: resources.length,
+                      total: purchasedResources.length,
                       folders: folders,
                       paid: paid,
                     ),
                     const SizedBox(height: 18),
-                    ...grouped.entries.map((courseEntry) {
-                      return _CourseAudioGroup(
-                        course: courseEntry.key,
-                        levels: courseEntry.value,
-                        canOpen: _canOpen,
-                        onOpen: _openResource,
-                        activeAudioKey: _activeAudioKey,
-                        activeAudio: _activeAudio,
-                      );
-                    }),
+                    _PurchasedAudioCoursesView(
+                      enrollments: enrollments,
+                      resourcesForEnrollment: (enrollment) =>
+                          _resourcesForEnrollment(enrollment, resources),
+                      onOpen: (enrollment) =>
+                          _openCourseAudio(enrollment, resources),
+                    ),
                   ],
                 ),
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PurchasedAudioCoursesView extends StatelessWidget {
+  final List<UserEnrollment> enrollments;
+  final List<AudioResource> Function(UserEnrollment enrollment)
+  resourcesForEnrollment;
+  final ValueChanged<UserEnrollment> onOpen;
+
+  const _PurchasedAudioCoursesView({
+    required this.enrollments,
+    required this.resourcesForEnrollment,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 760 ? 2 : 1;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: enrollments.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 142,
+          ),
+          itemBuilder: (context, index) {
+            final enrollment = enrollments[index];
+            final resources = resourcesForEnrollment(enrollment);
+            final files = resources.fold<int>(
+              0,
+              (sum, resource) =>
+                  sum + (resource.isFolder ? resource.items.length : 1),
+            );
+            return _PurchasedAudioCourseCard(
+              enrollment: enrollment,
+              resourcesCount: resources.length,
+              filesCount: files,
+              onTap: () => onOpen(enrollment),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _PurchasedAudioCourseCard extends StatelessWidget {
+  final UserEnrollment enrollment;
+  final int resourcesCount;
+  final int filesCount;
+  final VoidCallback onTap;
+
+  const _PurchasedAudioCourseCard({
+    required this.enrollment,
+    required this.resourcesCount,
+    required this.filesCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 17,
+                color: AppColors.orange,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      enrollment.courseTitle,
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      enrollment.courseLanguage,
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$resourcesCount مجموعة - $filesCount ملف صوتي',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.orangeSoft,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: const Icon(
+                  Icons.headphones_rounded,
+                  color: AppColors.orange,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StudentCourseAudioPage extends StatefulWidget {
+  final UserEnrollment enrollment;
+  final List<AudioResource> resources;
+
+  const _StudentCourseAudioPage({
+    required this.enrollment,
+    required this.resources,
+  });
+
+  @override
+  State<_StudentCourseAudioPage> createState() =>
+      _StudentCourseAudioPageState();
+}
+
+class _StudentCourseAudioPageState extends State<_StudentCourseAudioPage> {
+  String? _activeAudioKey;
+  _InlineAudioData? _activeAudio;
+
+  Map<String, List<AudioResource>> get _levels {
+    final grouped = <String, List<AudioResource>>{};
+    for (final resource in widget.resources) {
+      final level = resource.level.isEmpty ? 'بدون مستوى' : resource.level;
+      grouped.putIfAbsent(level, () => []);
+      grouped[level]!.add(resource);
+    }
+    return grouped;
+  }
+
+  void _openResource(AudioResource resource) {
+    if (resource.isFolder && resource.items.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => _AudioFolderPage(resource: resource)),
+      );
+      return;
+    }
+
+    if (resource.isFolder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'لم يتم العثور على ملفات صوتية داخل هذا الفولدر',
+            textAlign: TextAlign.right,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final audioUrl = _resolveAudioUrl(resource.url);
+    if (audioUrl == null) {
+      _showInvalidAudioUrl(context);
+      return;
+    }
+    debugPrint('AUDIO URL = $audioUrl');
+
+    final key = 'resource:${resource.id}';
+    setState(() {
+      if (_activeAudioKey == key) {
+        _activeAudioKey = null;
+        _activeAudio = null;
+      } else {
+        _activeAudioKey = key;
+        _activeAudio = _InlineAudioData(
+          title: resource.title,
+          url: audioUrl,
+          fileType: resource.fileType,
+          subtitle: widget.enrollment.courseTitle,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: Text(widget.enrollment.courseTitle)),
+        body: widget.resources.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.headphones_rounded,
+                        size: 68,
+                        color: AppColors.orange,
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'لا توجد صوتيات لهذا الكورس حالياً',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    Text(
+                      widget.enrollment.courseTitle,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.enrollment.courseLanguage,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 16),
+                    ..._levels.entries.map(
+                      (entry) => _LevelAudioGroup(
+                        level: entry.key,
+                        resources: entry.value,
+                        canOpen: (_) => true,
+                        onOpen: _openResource,
+                        activeAudioKey: _activeAudioKey,
+                        activeAudio: _activeAudio,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _PurchasedAudioEmptyState extends StatelessWidget {
+  const _PurchasedAudioEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_rounded, size: 66, color: AppColors.orange),
+            const SizedBox(height: 14),
+            const Text(
+              'لا توجد كورسات مشتراة بعد',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'بعد شراء كورس ستظهر صوتياته هنا داخل كارت منفصل.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ],
         ),
       ),
     );
@@ -348,6 +711,7 @@ class _AudioStatPill extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _CourseAudioGroup extends StatelessWidget {
   final String course;
   final Map<String, List<AudioResource>> levels;
@@ -606,6 +970,13 @@ class _AudioFolderPageState extends State<_AudioFolderPage> {
   _InlineAudioData? _activeAudio;
 
   void _toggleItem(AudioResourceItem item) {
+    final audioUrl = _resolveAudioUrl(item.url);
+    if (audioUrl == null) {
+      _showInvalidAudioUrl(context);
+      return;
+    }
+    debugPrint('AUDIO URL = $audioUrl');
+
     final key = 'folder:${widget.resource.id}:${item.id}';
     setState(() {
       if (_activeAudioKey == key) {
@@ -615,7 +986,7 @@ class _AudioFolderPageState extends State<_AudioFolderPage> {
         _activeAudioKey = key;
         _activeAudio = _InlineAudioData(
           title: item.title,
-          url: item.url,
+          url: audioUrl,
           fileType: item.fileType,
           subtitle: widget.resource.title,
         );
@@ -781,38 +1152,7 @@ class _EmbeddedAudioPanel extends StatelessWidget {
 }
 
 String _playerHtml(_InlineAudioData audio) {
-  final source = _embedUrl(audio.url);
-  final safeSource = _escape(source);
-  final preview = _drivePreviewUrl(audio.url);
-
-  if (preview != null) {
-    final safePreview = _escape(preview);
-    return '''
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  html, body {
-    margin: 0;
-    height: 100%;
-    background: #0b0d12;
-  }
-  iframe {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    display: block;
-    background: #0b0d12;
-  }
-</style>
-</head>
-<body>
-  <iframe src="$safePreview" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-</body>
-</html>
-''';
-  }
+  final safeSource = _escape(audio.url);
 
   return '''
 <!DOCTYPE html>
@@ -844,55 +1184,79 @@ String _playerHtml(_InlineAudioData audio) {
 </head>
 <body>
   <main class="wrap">
-    <audio controls autoplay controlsList="nodownload" src="$safeSource"></audio>
+    <audio controls autoplay preload="metadata" controlsList="nodownload" src="$safeSource"></audio>
   </main>
 </body>
 </html>
 ''';
 }
 
-String _embedUrl(String value) {
+String? _resolveAudioUrl(String value) {
   final url = value.trim();
-  final fileMatch = RegExp(
-    r'drive\.google\.com/file/d/([^/?]+)',
-  ).firstMatch(url);
-  if (fileMatch != null) {
-    return 'https://drive.google.com/uc?export=download&id=${fileMatch.group(1)}';
+  if (url.isEmpty) {
+    return null;
   }
-  final openMatch = RegExp(
-    r'drive\.google\.com/(?:open|uc)\?(?:[^#]*&)?id=([^&#]+)',
-  ).firstMatch(url);
-  if (openMatch != null) {
-    return 'https://drive.google.com/uc?export=download&id=${openMatch.group(1)}';
+
+  if (url.startsWith('data:')) {
+    return url;
   }
-  final folderMatch = RegExp(
-    r'drive\.google\.com/drive/folders/([^/?]+)',
-  ).firstMatch(url);
-  if (folderMatch != null) {
-    return 'https://drive.google.com/embeddedfolderview?id=${folderMatch.group(1)}#list';
+
+  if (_isGoogleDriveUrl(url)) {
+    return url.toLowerCase().contains('drive.google.com')
+        ? _googleDriveDownloadUrl(url)
+        : url;
   }
+
+  if (url.startsWith('/')) {
+    if (url == '/api' || url == '/api/') {
+      return null;
+    }
+    return Uri.parse(ApiConfig.baseUrl).resolve(url).toString();
+  }
+
+  final uri = Uri.tryParse(url);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+    return null;
+  }
+
+  final apiRoot = Uri.parse(ApiConfig.baseUrl);
+  final isApiRoot =
+      uri.scheme == apiRoot.scheme &&
+      uri.host == apiRoot.host &&
+      uri.port == apiRoot.port &&
+      (uri.path.isEmpty || uri.path == '/');
+  if (isApiRoot || uri.path == '/api' || uri.path == '/api/') {
+    return null;
+  }
+
   return url;
 }
 
-String? _drivePreviewUrl(String value) {
-  final id = _driveFileId(value);
-  if (id == null || id.isEmpty) return null;
-  return 'https://drive.google.com/file/d/$id/preview';
+bool _isGoogleDriveUrl(String value) {
+  final url = value.toLowerCase();
+  return url.contains('drive.google.com') ||
+      url.contains('googleapis.com/drive/');
 }
 
-String? _driveFileId(String value) {
+String? _googleDriveDownloadUrl(String value) {
   final url = value.trim();
   final fileMatch = RegExp(
     r'drive\.google\.com/file/d/([^/?#]+)',
   ).firstMatch(url);
-  if (fileMatch != null) return fileMatch.group(1);
-
   final openMatch = RegExp(
     r'drive\.google\.com/(?:open|uc)\?(?:[^#]*&)?id=([^&#]+)',
   ).firstMatch(url);
-  if (openMatch != null) return openMatch.group(1);
+  final id = fileMatch?.group(1) ?? openMatch?.group(1);
+  if (id == null || id.isEmpty) {
+    return null;
+  }
+  return 'https://drive.google.com/uc?export=download&id=$id';
+}
 
-  return null;
+void _showInvalidAudioUrl(BuildContext context) {
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('رابط الصوت غير صالح')));
 }
 
 String _escape(String value) {

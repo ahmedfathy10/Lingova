@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, unnecessary_underscores, unused_element
+
 import 'dart:convert';
 import 'dart:ui';
 
@@ -24,11 +26,423 @@ import '../../data/services/course_image_picker.dart';
 import '../../data/services/exam_api_service.dart';
 import '../../data/services/text_file_downloader.dart';
 import '../../data/services/watch_progress_api_service.dart';
-import 'admin_login_screen.dart';
 import 'certificate_page.dart';
 import 'book_viewer_screen.dart';
-
 part 'admin_notifications_widgets.dart';
+
+class AdminShellScreen extends StatefulWidget {
+  final AdminSession session;
+
+  const AdminShellScreen({super.key, required this.session});
+
+  @override
+  State<AdminShellScreen> createState() => _AdminShellScreenState();
+}
+
+class _AdminShellScreenState extends State<AdminShellScreen> {
+  late final List<_AdminSection> _sections;
+  late final List<Widget?> _pages;
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sections = [
+      _AdminSection(
+        label: 'لوحة التحكم',
+        icon: Icons.dashboard_rounded,
+        builder: () => AdminDashboardPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الطلاب',
+        icon: Icons.groups_rounded,
+        builder: () => AdminUsersPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'طلبات الاشتراك',
+        icon: Icons.verified_user_rounded,
+        builder: () => AdminSubscriptionsPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الكورسات',
+        icon: Icons.menu_book_rounded,
+        builder: () => AdminCoursesPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الكتب',
+        icon: Icons.library_books_rounded,
+        builder: () => AdminBooksPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الامتحانات',
+        icon: Icons.quiz_rounded,
+        builder: () => AdminExamsPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'تقارير الامتحانات',
+        icon: Icons.insights_rounded,
+        builder: () => AdminExamReportsPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'بنك الأسئلة',
+        icon: Icons.help_center_rounded,
+        builder: () => AdminQuestionsPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الشهادات',
+        icon: Icons.workspace_premium_rounded,
+        builder: () => AdminCertificatesPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الإشعارات',
+        icon: Icons.notifications_active_rounded,
+        builder: () => AdminNotificationsPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'سجل النشاط',
+        icon: Icons.history_rounded,
+        builder: () => AdminActivityLogsPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'تقرير المشاهدة',
+        icon: Icons.play_circle_fill_rounded,
+        builder: () => AdminWatchReportPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الكلمات',
+        icon: Icons.translate_rounded,
+        builder: () => AdminVocabularyPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'الصوتيات',
+        icon: Icons.headphones_rounded,
+        builder: () => AdminCourseAudioManagerPage(session: widget.session),
+      ),
+      _AdminSection(
+        label: 'المجتمع',
+        icon: Icons.forum_rounded,
+        builder: () => AdminCommunityPage(token: widget.session.token),
+      ),
+      _AdminSection(
+        label: 'الدعم',
+        icon: Icons.support_agent_rounded,
+        builder: () => AdminSupportChatPage(token: widget.session.token),
+      ),
+      _AdminSection(
+        label: 'نموذج التسجيل',
+        icon: Icons.dynamic_form_rounded,
+        builder: () =>
+            AdminRegistrationFormSettingsPage(session: widget.session),
+      ),
+    ];
+    _pages = List<Widget?>.filled(_sections.length, null);
+  }
+
+  void _selectSection(int index) {
+    setState(() => _selectedIndex = index);
+  }
+
+  Widget _pageFor(int index) {
+    return _pages[index] ??= _sections[index].builder();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 980;
+        final selectedSection = _sections[_selectedIndex];
+
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: isWide
+              ? null
+              : AppBar(
+                  title: Text(
+                    selectedSection.label,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+          drawer: isWide
+              ? null
+              : _AdminDrawer(
+                  sections: _sections,
+                  selectedIndex: _selectedIndex,
+                  session: widget.session,
+                  onSelected: (index) {
+                    Navigator.of(context).pop();
+                    _selectSection(index);
+                  },
+                ),
+          body: SafeArea(
+            child: Row(
+              children: [
+                if (isWide)
+                  _AdminSidebar(
+                    sections: _sections,
+                    selectedIndex: _selectedIndex,
+                    session: widget.session,
+                    onSelected: _selectSection,
+                  ),
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.fromLTRB(
+                      isWide ? 0 : 10,
+                      isWide ? 14 : 8,
+                      isWide ? 14 : 10,
+                      10,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(isWide ? 16 : 10),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: IndexedStack(
+                      index: _selectedIndex,
+                      children: [
+                        for (var index = 0; index < _sections.length; index++)
+                          KeyedSubtree(
+                            key: PageStorageKey(_sections[index].label),
+                            child:
+                                index == _selectedIndex || _pages[index] != null
+                                ? _pageFor(index)
+                                : const SizedBox.shrink(),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AdminSection {
+  final String label;
+  final IconData icon;
+  final Widget Function() builder;
+
+  const _AdminSection({
+    required this.label,
+    required this.icon,
+    required this.builder,
+  });
+}
+
+class _AdminSidebar extends StatelessWidget {
+  final List<_AdminSection> sections;
+  final int selectedIndex;
+  final AdminSession session;
+  final ValueChanged<int> onSelected;
+
+  const _AdminSidebar({
+    required this.sections,
+    required this.selectedIndex,
+    required this.session,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 286,
+      margin: const EdgeInsets.fromLTRB(14, 14, 0, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          _AdminShellHeader(session: session),
+          Divider(height: 1, color: AppColors.border),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(10),
+              itemCount: sections.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 4),
+              itemBuilder: (context, index) {
+                final section = sections[index];
+                final selected = selectedIndex == index;
+                return _AdminSidebarItem(
+                  label: section.label,
+                  icon: section.icon,
+                  selected: selected,
+                  onTap: () => onSelected(index),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminDrawer extends StatelessWidget {
+  final List<_AdminSection> sections;
+  final int selectedIndex;
+  final AdminSession session;
+  final ValueChanged<int> onSelected;
+
+  const _AdminDrawer({
+    required this.sections,
+    required this.selectedIndex,
+    required this.session,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: AppColors.surface,
+      child: SafeArea(
+        child: Column(
+          children: [
+            _AdminShellHeader(session: session),
+            Divider(height: 1, color: AppColors.border),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(10),
+                itemCount: sections.length,
+                itemBuilder: (context, index) {
+                  final section = sections[index];
+                  return _AdminSidebarItem(
+                    label: section.label,
+                    icon: section.icon,
+                    selected: selectedIndex == index,
+                    onTap: () => onSelected(index),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminShellHeader extends StatelessWidget {
+  final AdminSession session;
+
+  const _AdminShellHeader({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = session.name.trim().isEmpty ? 'Lingova Admin' : session.name;
+    final subtitle = session.email.trim().isEmpty
+        ? 'لوحة الإدارة'
+        : session.email;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.orangeSoft,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.orange.withValues(alpha: .55),
+              ),
+            ),
+            child: const Icon(
+              Icons.admin_panel_settings_rounded,
+              color: AppColors.orange,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  title,
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminSidebarItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AdminSidebarItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.orangeSoft : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 21,
+                color: selected ? AppColors.orange : AppColors.textMuted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected
+                        ? AppColors.textPrimary
+                        : AppColors.textMuted,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 ImageProvider<Object>? _courseImageProvider(String imageDataUrl) {
   if (imageDataUrl.isEmpty) {
@@ -43,354 +457,127 @@ ImageProvider<Object>? _courseImageProvider(String imageDataUrl) {
       return null;
     }
   }
+
   return NetworkImage(imageDataUrl);
 }
 
-String _money(int value) => '$value EGP';
+String _money(num value) => '${value.toStringAsFixed(0)} EGP';
 
-class AdminShellScreen extends StatefulWidget {
-  final AdminSession session;
+int _dashboardColumns(double width, int maxColumns) {
+  if (maxColumns == 5) {
+    if (width >= 1180) return 5;
+    if (width >= 860) return 3;
+    if (width >= 620) return 2;
+    return 1;
+  }
 
-  const AdminShellScreen({super.key, required this.session});
-
-  @override
-  State<AdminShellScreen> createState() => _AdminShellScreenState();
+  if (width >= 1040) return maxColumns;
+  if (width >= 620) return 2;
+  return 1;
 }
 
-class _AdminShellScreenState extends State<AdminShellScreen> {
-  int _index = 0;
+class _ReadersDialog extends StatelessWidget {
+  final List<NotificationReader> readers;
 
-  static const _destinations = [
-    _AdminDestination(
-      title: 'الداشبورد',
-      icon: Icons.dashboard_outlined,
-      selectedIcon: Icons.dashboard_rounded,
-    ),
-    _AdminDestination(
-      title: 'سجل النشاط',
-      icon: Icons.history_outlined,
-      selectedIcon: Icons.history_rounded,
-    ),
-    _AdminDestination(
-      title: 'المستخدمين',
-      icon: Icons.people_outline_rounded,
-      selectedIcon: Icons.people_rounded,
-    ),
-    _AdminDestination(
-      title: 'طلبات الاشتراك',
-      icon: Icons.receipt_long_outlined,
-      selectedIcon: Icons.receipt_long_rounded,
-    ),
-    _AdminDestination(
-      title: 'الامتحانات',
-      icon: Icons.quiz_outlined,
-      selectedIcon: Icons.quiz_rounded,
-    ),
-    _AdminDestination(
-      title: 'تقارير الامتحانات',
-      icon: Icons.assignment_turned_in_outlined,
-      selectedIcon: Icons.assignment_turned_in_rounded,
-    ),
-    _AdminDestination(
-      title: 'الشهادات',
-      icon: Icons.auto_stories_outlined,
-      selectedIcon: Icons.auto_stories_rounded,
-    ),
-    _AdminDestination(
-      title: 'الكورسات',
-      icon: Icons.video_library_outlined,
-      selectedIcon: Icons.video_library_rounded,
-    ),
-    _AdminDestination(
-      title: 'الكتب',
-      icon: Icons.menu_book_outlined,
-      selectedIcon: Icons.menu_book_rounded,
-    ),
-    _AdminDestination(
-      title: 'Vocabulary',
-      icon: Icons.translate_outlined,
-      selectedIcon: Icons.translate_rounded,
-    ),
-    _AdminDestination(
-      title: 'الصوتيات',
-      icon: Icons.headphones_outlined,
-      selectedIcon: Icons.headphones_rounded,
-    ),
-    _AdminDestination(
-      title: 'الأسئلة',
-      icon: Icons.forum_outlined,
-      selectedIcon: Icons.forum_rounded,
-    ),
-    _AdminDestination(
-      title: 'الشات',
-      icon: Icons.support_agent_outlined,
-      selectedIcon: Icons.support_agent_rounded,
-    ),
-    _AdminDestination(
-      title: 'المجتمع',
-      icon: Icons.groups_outlined,
-      selectedIcon: Icons.groups_rounded,
-    ),
-    _AdminDestination(
-      title: 'الإشعارات',
-      icon: Icons.notifications_outlined,
-      selectedIcon: Icons.notifications_rounded,
-    ),
-    _AdminDestination(
-      title: 'فورم التسجيل',
-      icon: Icons.dynamic_form_outlined,
-      selectedIcon: Icons.dynamic_form_rounded,
-    ),
-  ];
-
-  List<Widget> get _pages => [
-    AdminDashboardPage(session: widget.session),
-    AdminActivityLogsPage(session: widget.session),
-    AdminUsersPage(session: widget.session),
-    AdminSubscriptionsPage(session: widget.session),
-    AdminExamsPage(session: widget.session),
-    AdminExamReportsPage(session: widget.session),
-    AdminCertificatesPage(session: widget.session),
-    AdminCoursesPage(session: widget.session),
-    AdminBooksPage(session: widget.session),
-    AdminVocabularyPage(session: widget.session),
-    AdminAudioResourcesPage(session: widget.session),
-    AdminQuestionsPage(session: widget.session),
-    AdminSupportChatPage(token: widget.session.token),
-    AdminCommunityPage(token: widget.session.token),
-    AdminNotificationsPage(session: widget.session),
-    AdminRegistrationFormSettingsPage(session: widget.session),
-  ];
-
-  Drawer _buildDrawer() {
-    return Drawer(
-      child: Directionality(
-        textDirection: TextDirection.rtl,
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'لوحة تحكم Lingova',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                ),
-              ),
-            ),
-            ..._destinations.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              final selected = index == _index;
-              return ListTile(
-                selected: selected,
-                leading: Icon(selected ? item.selectedIcon : item.icon),
-                title: Text(item.title, textAlign: TextAlign.right),
-                onTap: () {
-                  setState(() => _index = index);
-                  Navigator.of(context).pop();
-                },
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
+  const _ReadersDialog({required this.readers});
 
   @override
   Widget build(BuildContext context) {
-    final pages = _pages;
-    final isWide = MediaQuery.sizeOf(context).width >= 900;
-    final safeIndex = _index.clamp(0, pages.length - 1);
-    if (safeIndex != _index) {
-      _index = safeIndex;
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF050912),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF050912),
-        surfaceTintColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('لوحة تحكم Lingova'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'تسجيل خروج',
-            onPressed: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
-              );
-            },
-            icon: const Icon(Icons.logout_rounded),
-          ),
-        ],
-      ),
-      drawer: _buildDrawer(),
-      body: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Row(
+    return Dialog(
+      backgroundColor: const Color(0xff07101a),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 520),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (isWide)
-              Container(
-                width: 122,
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: .060),
-                      const Color(0xFF0A111D).withValues(alpha: .92),
-                    ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
+              child: Row(
+                textDirection: TextDirection.rtl,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'قرّاء الإشعار',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: .10),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .34),
-                      blurRadius: 28,
-                      offset: const Offset(0, 18),
-                    ),
-                  ],
-                ),
-                child: NavigationRail(
-                  selectedIndex: _index,
-                  onDestinationSelected: (value) =>
-                      setState(() => _index = value),
-                  labelType: NavigationRailLabelType.all,
-                  scrollable: true,
-                  backgroundColor: Colors.transparent,
-                  indicatorColor: AppColors.orange.withValues(alpha: .18),
-                  selectedIconTheme: const IconThemeData(
-                    color: Color(0xFFFFB15A),
-                    size: 25,
-                  ),
-                  unselectedIconTheme: const IconThemeData(
-                    color: Color(0xFFC7CEDA),
-                    size: 24,
-                  ),
-                  selectedLabelTextStyle: const TextStyle(
-                    color: Color(0xFFFFB15A),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                  ),
-                  unselectedLabelTextStyle: const TextStyle(
-                    color: Color(0xFFC7CEDA),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.dashboard_outlined),
-                      selectedIcon: Icon(Icons.dashboard_rounded),
-                      label: Text('الداشبورد'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.history_outlined),
-                      selectedIcon: Icon(Icons.history_rounded),
-                      label: Text('سجل النشاط'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.people_outline_rounded),
-                      selectedIcon: Icon(Icons.people_rounded),
-                      label: Text('المستخدمين'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long_rounded),
-                      label: Text('طلبات الاشتراك'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.quiz_outlined),
-                      selectedIcon: Icon(Icons.quiz_rounded),
-                      label: Text('الامتحانات'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.assignment_turned_in_outlined),
-                      selectedIcon: Icon(Icons.assignment_turned_in_rounded),
-                      label: Text('تقارير الامتحانات'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.auto_stories_outlined),
-                      selectedIcon: Icon(Icons.auto_stories_rounded),
-                      label: Text('الشهادات'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.video_library_outlined),
-                      selectedIcon: Icon(Icons.video_library_rounded),
-                      label: Text('الكورسات'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.menu_book_outlined),
-                      selectedIcon: Icon(Icons.menu_book_rounded),
-                      label: Text('الكتب'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.translate_outlined),
-                      selectedIcon: Icon(Icons.translate_rounded),
-                      label: Text('Vocabulary'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.headphones_outlined),
-                      selectedIcon: Icon(Icons.headphones_rounded),
-                      label: Text('الصوتيات'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.forum_outlined),
-                      selectedIcon: Icon(Icons.forum_rounded),
-                      label: Text('الأسئلة'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.support_agent_outlined),
-                      selectedIcon: Icon(Icons.support_agent_rounded),
-                      label: Text('الشات'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.groups_outlined),
-                      selectedIcon: Icon(Icons.groups_rounded),
-                      label: Text('المجتمع'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.notifications_outlined),
-                      selectedIcon: Icon(Icons.notifications_rounded),
-                      label: Text('الإشعارات'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.dynamic_form_outlined),
-                      selectedIcon: Icon(Icons.dynamic_form_rounded),
-                      label: Text('فورم التسجيل'),
-                    ),
-                  ],
-                ),
+                ],
               ),
-            Expanded(child: pages[safeIndex]),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(12),
+                itemCount: readers.length,
+                separatorBuilder: (_, __) => const Divider(height: 8),
+                itemBuilder: (context, index) {
+                  final r = readers[index];
+                  return ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.grey.shade800,
+                      child: Text(
+                        (r.fullName.isNotEmpty ? r.fullName : r.id)
+                            .split(RegExp(r'\s+'))
+                            .map((s) => s.isEmpty ? '' : s[0].toUpperCase())
+                            .take(2)
+                            .join(),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    title: Text(
+                      r.fullName.isNotEmpty ? r.fullName : r.id,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      r.phone.isNotEmpty ? r.phone : '',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                    trailing: Text(
+                      r.readAt.isNotEmpty ? _readableTime(r.readAt) : '',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
     );
   }
-}
 
-class _AdminDestination {
-  final String title;
-  final IconData icon;
-  final IconData selectedIcon;
-
-  const _AdminDestination({
-    required this.title,
-    required this.icon,
-    required this.selectedIcon,
-  });
+  static String _readableTime(String iso) {
+    try {
+      final dt = DateTime.tryParse(iso);
+      if (dt == null) return iso;
+      final local = dt.toLocal();
+      final y = local.year.toString().padLeft(4, '0');
+      final m = local.month.toString().padLeft(2, '0');
+      final d = local.day.toString().padLeft(2, '0');
+      final hh = local.hour.toString().padLeft(2, '0');
+      final mm = local.minute.toString().padLeft(2, '0');
+      return '$d/$m/$y $hh:$mm';
+    } catch (_) {
+      return iso;
+    }
+  }
 }
 
 class AdminDashboardPage extends StatefulWidget {
@@ -446,7 +633,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               const SizedBox(height: 18),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 900 ? 4 : 2;
+                  final columns = _dashboardColumns(constraints.maxWidth, 4);
                   final firstCards = [
                     _MetricCard(
                       title: 'الطلاب المسجلين',
@@ -478,7 +665,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       crossAxisCount: columns,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
-                      mainAxisExtent: 140,
+                      mainAxisExtent: 150,
                     ),
                     itemBuilder: (context, index) => firstCards[index],
                   );
@@ -487,7 +674,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               const SizedBox(height: 18),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 900 ? 5 : 2;
+                  final columns = _dashboardColumns(constraints.maxWidth, 5);
                   final secondCards = [
                     _MetricCard(
                       title: 'إجمالي الإيراد',
@@ -524,7 +711,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       crossAxisCount: columns,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
-                      mainAxisExtent: 140,
+                      mainAxisExtent: 150,
                     ),
                     itemBuilder: (context, index) => secondCards[index],
                   );
@@ -811,6 +998,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('تم حفظ التغيير بنجاح.')));
     });
+  }
+
+  void _refresh() {
+    if (!mounted) {
+      return;
+    }
+    setState(() => _usersFuture = _service.getUsers(widget.session.token));
   }
 
   void _showMessage(String message) {
@@ -4069,6 +4263,33 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
   }
 }
 
+class _NotificationMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _NotificationMeta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      textDirection: TextDirection.rtl,
+      children: [
+        Icon(icon, size: 17, color: AppColors.orange),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _NotificationFormDialog extends StatefulWidget {
   final Future<List<AdminUser>> usersFuture;
 
@@ -4810,7 +5031,7 @@ class _CourseCard extends StatelessWidget {
                     image: imageProvider,
                     fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
-                      Colors.black.withValues(alpha: 0.36),
+                      Colors.black.withOpacity(0.36),
                       BlendMode.darken,
                     ),
                   )
@@ -4826,7 +5047,7 @@ class _CourseCard extends StatelessWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
+                      color: Colors.white.withOpacity(0.16),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
@@ -4869,7 +5090,7 @@ class _CourseCard extends StatelessWidget {
                 course.language,
                 textAlign: TextAlign.right,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.82),
+                  color: Colors.white.withOpacity(0.82),
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -4880,7 +5101,7 @@ class _CourseCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.82),
+                  color: Colors.white.withOpacity(0.82),
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -4894,7 +5115,7 @@ class _CourseCard extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
+                    color: Colors.white.withOpacity(0.16),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -5171,6 +5392,33 @@ class _TreeCard extends StatelessWidget {
   }
 }
 
+class _TreeTitle extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _TreeTitle({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      textDirection: TextDirection.rtl,
+      children: [
+        Icon(icon, color: AppColors.orange),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PageTitle extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -5290,28 +5538,38 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 132,
+    return SizedBox.expand(
       child: _Panel(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, color: AppColors.orange, size: 20),
-            const SizedBox(height: 4),
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.orangeSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: AppColors.orange, size: 21),
+            ),
             Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
-            const SizedBox(height: 4),
-            Flexible(
-              child: Text(
-                title,
-                textAlign: TextAlign.right,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 10),
+            Text(
+              title,
+              textAlign: TextAlign.right,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 12,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -5329,7 +5587,7 @@ class _Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(8),

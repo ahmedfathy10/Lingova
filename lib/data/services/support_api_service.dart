@@ -7,9 +7,9 @@ import 'auth_http_client.dart';
 
 class SupportApiService {
   Future<List<SupportMessage>> getMessages({required String studentId}) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/support/messages').replace(
-      queryParameters: {'studentId': studentId},
-    );
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/api/support/messages',
+    ).replace(queryParameters: {'studentId': studentId});
 
     final response = await getJson(uri);
     final json = _readJson(response.body);
@@ -31,10 +31,7 @@ class SupportApiService {
   }) async {
     final response = await postJson(
       Uri.parse('${ApiConfig.baseUrl}/api/support/messages'),
-      {
-        'studentId': studentId,
-        'message': message,
-      },
+      {'studentId': studentId, 'message': message},
     );
 
     final json = _readJson(response.body);
@@ -101,9 +98,7 @@ class SupportApiService {
   }) async {
     final response = await postJson(
       Uri.parse('${ApiConfig.baseUrl}/api/admin/support-messages/read'),
-      {
-        'studentId': studentId,
-      },
+      {'studentId': studentId},
       headers: _headers(token),
     );
 

@@ -91,7 +91,10 @@ class _AdminVocabularyPageState extends State<AdminVocabularyPage> {
               tooltip: 'استيراد ملف',
               icon: const Icon(Icons.upload_file_rounded),
             ),
-            IconButton(onPressed: _add, icon: const Icon(Icons.add_rounded)),
+            IconButton(
+              onPressed: () => _add(),
+              icon: const Icon(Icons.add_rounded),
+            ),
           ],
         ),
         body: FutureBuilder<List<VocabularyWord>>(
@@ -169,13 +172,16 @@ class _AdminAudioResourcesPageState extends State<AdminAudioResourcesPage> {
     });
   }
 
-  Future<void> _add() async {
+  Future<void> _add({AdminCoursePart? course}) async {
     final parts = await _coursesFuture;
     if (!mounted) return;
     final result = await showDialog<AudioResource>(
       context: context,
-      builder: (_) =>
-          _AudioResourceDialog(parts: parts, token: widget.session.token),
+      builder: (_) => _AudioResourceDialog(
+        parts: parts,
+        token: widget.session.token,
+        initialCourse: course,
+      ),
     );
     if (result == null) return;
     await _contentService.createAudioResource(widget.session.token, result);
@@ -188,6 +194,41 @@ class _AdminAudioResourcesPageState extends State<AdminAudioResourcesPage> {
       resource.id,
     );
     _refresh();
+  }
+
+  // ignore: unused_element
+  Future<void> _audit() async {
+    try {
+      final result = await _contentService.auditAudioResources(
+        widget.session.token,
+      );
+      if (!mounted) return;
+      final issues = result['issues'] as List? ?? const [];
+      final message = issues.isEmpty
+          ? 'كل ملفات الصوتيات مرفوعة أونلاين ومتاحة.'
+          : 'يوجد ${issues.length} مشكلة في الصوتيات. الناقص: ${result['missingFiles'] ?? issues.length} ملف.';
+      showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('فحص الصوتيات'),
+          content: Text(
+            '$message\n\nتم فحص ${result['checkedFiles'] ?? 0} ملف داخل ${result['checkedResources'] ?? 0} مجموعة.',
+            textAlign: TextAlign.right,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('تمام'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString(), textAlign: TextAlign.right)),
+      );
+    }
   }
 
   @override
@@ -243,6 +284,657 @@ class _AdminAudioResourcesPageState extends State<AdminAudioResourcesPage> {
       ),
     );
   }
+}
+
+class AdminCourseAudioManagerPage extends StatefulWidget {
+  final AdminSession session;
+
+  const AdminCourseAudioManagerPage({super.key, required this.session});
+
+  @override
+  State<AdminCourseAudioManagerPage> createState() =>
+      _AdminCourseAudioManagerPageState();
+}
+
+class _AdminCourseAudioManagerPageState
+    extends State<AdminCourseAudioManagerPage> {
+  final _contentService = ContentManagementApiService();
+  final _adminService = AdminApiService();
+  late Future<List<AudioResource>> _resourcesFuture;
+  late Future<List<AdminCoursePart>> _coursesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _resourcesFuture = _contentService.getAudioResources(
+      token: widget.session.token,
+    );
+    _coursesFuture = _adminService.getCourseParts(widget.session.token);
+  }
+
+  void _refresh() {
+    setState(() {
+      _resourcesFuture = _contentService.getAudioResources(
+        token: widget.session.token,
+      );
+      _coursesFuture = _adminService.getCourseParts(widget.session.token);
+    });
+  }
+
+  Future<void> _add({AdminCoursePart? course}) async {
+    final parts = await _coursesFuture;
+    if (!mounted) return;
+    final result = await showDialog<AudioResource>(
+      context: context,
+      builder: (_) => _AudioResourceDialog(
+        parts: parts,
+        token: widget.session.token,
+        initialCourse: course,
+      ),
+    );
+    if (result == null) return;
+    await _contentService.createAudioResource(widget.session.token, result);
+    _refresh();
+  }
+
+  Future<void> _delete(AudioResource resource) async {
+    await _contentService.deleteAudioResource(
+      widget.session.token,
+      resource.id,
+    );
+    _refresh();
+  }
+
+  Future<void> _audit() async {
+    try {
+      final result = await _contentService.auditAudioResources(
+        widget.session.token,
+      );
+      if (!mounted) return;
+      final issues = result['issues'] as List? ?? const [];
+      final message = issues.isEmpty
+          ? 'كل ملفات الصوتيات مرفوعة أونلاين ومتاحة.'
+          : 'يوجد ${issues.length} مشكلة في الصوتيات. الناقص: ${result['missingFiles'] ?? issues.length} ملف.';
+      showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('فحص الصوتيات'),
+          content: Text(
+            '$message\n\nتم فحص ${result['checkedFiles'] ?? 0} ملف داخل ${result['checkedResources'] ?? 0} مجموعة.',
+            textAlign: TextAlign.right,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('تمام'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString(), textAlign: TextAlign.right)),
+      );
+    }
+  }
+
+  void _openCourse(
+    AdminCoursePart course,
+    List<AudioResource> resources,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _AdminCourseAudioDetailsPage(
+          course: course,
+          resources: resources
+              .where(
+                (resource) =>
+                    resource.courseLanguage == course.language &&
+                    resource.course == course.course,
+              )
+              .toList(),
+          onAdd: () => _add(course: course),
+          onDelete: _delete,
+        ),
+      ),
+    );
+    _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: FutureBuilder<List<Object>>(
+        future: Future.wait([_resourcesFuture, _coursesFuture]),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'تعذر تحميل الصوتيات.',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            );
+          }
+
+          final data = snapshot.data ?? const <Object>[];
+          final resources = data[0] as List<AudioResource>;
+          final parts = data[1] as List<AdminCoursePart>;
+          return _AdminAudioDashboard(
+            parts: parts,
+            resources: resources,
+            onAddGeneral: () => _add(),
+            onAudit: _audit,
+            onOpenCourse: (course) => _openCourse(course, resources),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AdminAudioDashboard extends StatelessWidget {
+  final List<AdminCoursePart> parts;
+  final List<AudioResource> resources;
+  final VoidCallback onAddGeneral;
+  final VoidCallback onAudit;
+  final ValueChanged<AdminCoursePart> onOpenCourse;
+
+  const _AdminAudioDashboard({
+    required this.parts,
+    required this.resources,
+    required this.onAddGeneral,
+    required this.onAudit,
+    required this.onOpenCourse,
+  });
+
+  List<AdminCoursePart> get _courses {
+    final map = <String, AdminCoursePart>{};
+    for (final part in parts) {
+      if (part.course.isEmpty || part.language.isEmpty) continue;
+      map['${part.language}|${part.course}'] = part;
+    }
+    final values = map.values.toList();
+    values.sort(
+      (a, b) =>
+          '${a.language}${a.course}'.compareTo('${b.language}${b.course}'),
+    );
+    return values;
+  }
+
+  List<_AdminAudioLanguageGroup> get _groups {
+    final courses = _courses;
+    final english = courses
+        .where((course) => _isEnglish(course.language))
+        .toList();
+    final german = courses
+        .where((course) => _isGerman(course.language))
+        .toList();
+    final other = courses
+        .where(
+          (course) =>
+              !_isEnglish(course.language) && !_isGerman(course.language),
+        )
+        .toList();
+    return [
+      _AdminAudioLanguageGroup(
+        title: 'الإنجليزي',
+        subtitle: 'كورسات وصوتيات اللغة الإنجليزية',
+        icon: Icons.language_rounded,
+        color: const Color(0xFF2563EB),
+        courses: english,
+      ),
+      _AdminAudioLanguageGroup(
+        title: 'الألماني',
+        subtitle: 'كورسات وصوتيات اللغة الألمانية',
+        icon: Icons.school_rounded,
+        color: AppColors.orange,
+        courses: german,
+      ),
+      if (other.isNotEmpty)
+        _AdminAudioLanguageGroup(
+          title: 'أخرى',
+          subtitle: 'كورسات لم يتم تصنيف لغتها',
+          icon: Icons.category_rounded,
+          color: const Color(0xFF16A34A),
+          courses: other,
+        ),
+    ];
+  }
+
+  int _resourceCount(AdminCoursePart course) {
+    return resources
+        .where(
+          (resource) =>
+              resource.courseLanguage == course.language &&
+              resource.course == course.course,
+        )
+        .length;
+  }
+
+  int _fileCount(AdminCoursePart course) {
+    return resources
+        .where(
+          (resource) =>
+              resource.courseLanguage == course.language &&
+              resource.course == course.course,
+        )
+        .fold<int>(
+          0,
+          (sum, resource) =>
+              sum + (resource.isFolder ? resource.items.length : 1),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = _groups;
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        Row(
+          children: [
+            OutlinedButton.icon(
+              onPressed: onAudit,
+              icon: const Icon(Icons.fact_check_rounded),
+              label: const Text('فحص الملفات'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: onAddGeneral,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('إضافة صوتيات'),
+            ),
+            const Spacer(),
+            const Text(
+              'الصوتيات',
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 720 ? 2 : 1;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: groups.take(2).length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                mainAxisExtent: 158,
+              ),
+              itemBuilder: (context, index) {
+                final group = groups[index];
+                final audioCount = group.courses.fold<int>(
+                  0,
+                  (sum, course) => sum + _resourceCount(course),
+                );
+                return _AdminLanguageSummaryCard(
+                  group: group,
+                  audioCount: audioCount,
+                );
+              },
+            );
+          },
+        ),
+        const SizedBox(height: 18),
+        ...groups.map(
+          (group) => _AdminLanguageCourseSection(
+            group: group,
+            audioCountFor: _resourceCount,
+            fileCountFor: _fileCount,
+            onOpenCourse: onOpenCourse,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdminAudioLanguageGroup {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final List<AdminCoursePart> courses;
+
+  const _AdminAudioLanguageGroup({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.courses,
+  });
+}
+
+class _AdminLanguageSummaryCard extends StatelessWidget {
+  final _AdminAudioLanguageGroup group;
+  final int audioCount;
+
+  const _AdminLanguageSummaryCard({
+    required this.group,
+    required this.audioCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: group.color.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(group.icon, color: group.color),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                group.title,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${group.courses.length} كورس - $audioCount مجموعة صوتيات',
+                textAlign: TextAlign.right,
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminLanguageCourseSection extends StatelessWidget {
+  final _AdminAudioLanguageGroup group;
+  final int Function(AdminCoursePart course) audioCountFor;
+  final int Function(AdminCoursePart course) fileCountFor;
+  final ValueChanged<AdminCoursePart> onOpenCourse;
+
+  const _AdminLanguageCourseSection({
+    required this.group,
+    required this.audioCountFor,
+    required this.fileCountFor,
+    required this.onOpenCourse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            group.title,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            group.subtitle,
+            textAlign: TextAlign.right,
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 12),
+          if (group.courses.isEmpty)
+            Text(
+              'لا توجد كورسات لهذه اللغة بعد.',
+              textAlign: TextAlign.right,
+              style: TextStyle(color: AppColors.textMuted),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 980
+                    ? 3
+                    : constraints.maxWidth >= 620
+                    ? 2
+                    : 1;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: group.courses.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    mainAxisExtent: 128,
+                  ),
+                  itemBuilder: (context, index) {
+                    final course = group.courses[index];
+                    return _AdminAudioCourseCard(
+                      course: course,
+                      audioCount: audioCountFor(course),
+                      fileCount: fileCountFor(course),
+                      color: group.color,
+                      onTap: () => onOpenCourse(course),
+                    );
+                  },
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminAudioCourseCard extends StatelessWidget {
+  final AdminCoursePart course;
+  final int audioCount;
+  final int fileCount;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AdminAudioCourseCard({
+    required this.course,
+    required this.audioCount,
+    required this.fileCount,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceHigh.withValues(alpha: .55),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.arrow_back_ios_new_rounded, size: 17, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      course.course,
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$audioCount مجموعة - $fileCount ملف صوتي',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.headphones_rounded, color: color),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminCourseAudioDetailsPage extends StatelessWidget {
+  final AdminCoursePart course;
+  final List<AudioResource> resources;
+  final VoidCallback onAdd;
+  final ValueChanged<AudioResource> onDelete;
+
+  const _AdminCourseAudioDetailsPage({
+    required this.course,
+    required this.resources,
+    required this.onAdd,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(course.course),
+          actions: [
+            IconButton(
+              tooltip: 'إضافة صوتيات للكورس',
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded),
+            ),
+          ],
+        ),
+        body: resources.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.headphones_rounded,
+                        size: 62,
+                        color: AppColors.orange,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'لا توجد صوتيات لهذا الكورس بعد.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: onAdd,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('إضافة صوتيات'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(18),
+                itemCount: resources.length,
+                itemBuilder: (context, index) {
+                  final resource = resources[index];
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(
+                        resource.isFolder
+                            ? Icons.folder_rounded
+                            : Icons.headphones_rounded,
+                        color: AppColors.orange,
+                      ),
+                      title: Text(resource.title, textAlign: TextAlign.right),
+                      subtitle: Text(
+                        '${resource.level.isEmpty ? 'بدون مستوى' : resource.level}\n${resource.isPaid ? 'مع شراء الكورس' : 'مجاني'} - ${resource.fileType} - ${resource.linkType}${resource.isFolder ? ' - ${resource.items.length} ملف' : ''}',
+                        textAlign: TextAlign.right,
+                      ),
+                      isThreeLine: true,
+                      trailing: IconButton(
+                        onPressed: () => onDelete(resource),
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+bool _isEnglish(String value) {
+  final text = value.toLowerCase();
+  return text.contains('english') ||
+      text.contains('انج') ||
+      text.contains('إنج') ||
+      text == 'en';
+}
+
+bool _isGerman(String value) {
+  final text = value.toLowerCase();
+  return text.contains('german') ||
+      text.contains('المان') ||
+      text.contains('ألمان') ||
+      text == 'de';
 }
 
 class _VocabularyWordDialog extends StatefulWidget {
@@ -705,8 +1397,13 @@ class _VocabularyBulkDialogState extends State<_VocabularyBulkDialog> {
 class _AudioResourceDialog extends StatefulWidget {
   final List<AdminCoursePart> parts;
   final String token;
+  final AdminCoursePart? initialCourse;
 
-  const _AudioResourceDialog({required this.parts, required this.token});
+  const _AudioResourceDialog({
+    required this.parts,
+    required this.token,
+    this.initialCourse,
+  });
 
   @override
   State<_AudioResourceDialog> createState() => _AudioResourceDialogState();
@@ -725,6 +1422,16 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
   List<AudioResourceItem> _detectedAudioItems = const [];
   String _audioFolderError = '';
   bool _isImportingDriveFolder = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialCourse = widget.initialCourse;
+    if (initialCourse != null) {
+      _courseKey = '${initialCourse.language}|${initialCourse.course}';
+      _accessType = initialCourse.isPaid ? 'paid' : 'free';
+    }
+  }
 
   List<AdminCoursePart> get _courses {
     final map = <String, AdminCoursePart>{};

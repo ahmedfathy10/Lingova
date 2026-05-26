@@ -134,14 +134,14 @@ class _CertificatePageState extends State<CertificatePage> {
       final savedPath = await _savePdfToUserDevice(bytes, fileName);
       if (savedPath == null || !mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_copy.savedMessage(savedPath))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_copy.savedMessage(savedPath))));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_copy.saveError}\n$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${_copy.saveError}\n$error')));
     } finally {
       if (mounted) {
         setState(() => _isExporting = false);
@@ -165,10 +165,7 @@ class _CertificatePageState extends State<CertificatePage> {
     throw StateError('Certificate template asset could not be loaded.');
   }
 
-  Future<String?> _savePdfToUserDevice(
-    Uint8List bytes,
-    String fileName,
-  ) async {
+  Future<String?> _savePdfToUserDevice(Uint8List bytes, String fileName) async {
     try {
       final savedPath = await FilePicker.saveFile(
         dialogTitle: _copy.download,
@@ -349,7 +346,9 @@ class _CertificatePageState extends State<CertificatePage> {
     final candidates = [
       File(_templateAsset),
       File('assets/images/certificate_template_blank.png'),
-      File('build/windows/x64/runner/Debug/data/flutter_assets/$_templateAsset'),
+      File(
+        'build/windows/x64/runner/Debug/data/flutter_assets/$_templateAsset',
+      ),
       File('${executableDir.path}/data/flutter_assets/$_templateAsset'),
     ];
 
@@ -401,11 +400,13 @@ class _CertificatePageState extends State<CertificatePage> {
 
   double _pdfX(double value) => value / _templateWidth * PdfPageFormat.a4.width;
 
-  double _pdfY(double value) => value / _templateHeight * PdfPageFormat.a4.height;
+  double _pdfY(double value) =>
+      value / _templateHeight * PdfPageFormat.a4.height;
 
   double _pdfW(double value) => value / _templateWidth * PdfPageFormat.a4.width;
 
-  double _pdfH(double value) => value / _templateHeight * PdfPageFormat.a4.height;
+  double _pdfH(double value) =>
+      value / _templateHeight * PdfPageFormat.a4.height;
 
   bool get _isEnglish {
     final language = widget.result.courseLanguage.toLowerCase();

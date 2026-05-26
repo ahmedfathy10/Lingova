@@ -339,8 +339,7 @@ class _AdminCommunityPostCardState extends State<_AdminCommunityPostCard> {
                 onPressed: widget.onLike,
                 icon: Icon(
                   Icons.thumb_up_alt_rounded,
-                  color:
-                      post.userReaction == 'like' ? AppColors.orange : null,
+                  color: post.userReaction == 'like' ? AppColors.orange : null,
                 ),
                 label: const Text('Like'),
               ),

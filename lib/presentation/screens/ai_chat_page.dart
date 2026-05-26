@@ -28,7 +28,8 @@ class _AiChatPageState extends State<AiChatPage> {
     super.initState();
     _messages.add(
       _ChatMessage(
-        text: 'مرحباً! اسألني عن أي كتاب أو فيديو مرفوع، وسأساعدك في إيجاد المحتوى المناسب.',
+        text:
+            'مرحباً! اسألني عن أي كتاب أو فيديو مرفوع، وسأساعدك في إيجاد المحتوى المناسب.',
         isUser: false,
       ),
     );
@@ -87,15 +88,37 @@ class _AiChatPageState extends State<AiChatPage> {
   String _generateReply(String prompt) {
     final lower = prompt.toLowerCase();
 
-    if (_containsAny(lower, ['كتاب', 'pdf', 'كتاب إلكترون', 'كتاب الكترون', 'book'])) {
+    if (_containsAny(lower, [
+      'كتاب',
+      'pdf',
+      'كتاب إلكترون',
+      'كتاب الكترون',
+      'book',
+    ])) {
       return _replyForBooks(lower);
     }
 
-    if (_containsAny(lower, ['فيديو', 'درس', 'كورسات', 'course', 'lecture', 'تدريب'])) {
+    if (_containsAny(lower, [
+      'فيديو',
+      'درس',
+      'كورسات',
+      'course',
+      'lecture',
+      'تدريب',
+    ])) {
       return _replyForCourses(lower);
     }
 
-    if (_containsAny(lower, ['كيف', 'ماذا', 'اين', 'لماذا', 'هل', 'ما', 'اذاً', 'اذا'])) {
+    if (_containsAny(lower, [
+      'كيف',
+      'ماذا',
+      'اين',
+      'لماذا',
+      'هل',
+      'ما',
+      'اذاً',
+      'اذا',
+    ])) {
       return 'يمكنني مساعدتك في العثور على كتب ودروس ضمن المحتوى المرفوع. اسأل عن عنوان الكتاب أو اسم الكورس أو أي سؤال عن الفيديوهات.';
     }
 
@@ -111,21 +134,30 @@ class _AiChatPageState extends State<AiChatPage> {
       final title = book.title.toLowerCase();
       final subtitle = book.subtitle.toLowerCase();
       final course = book.course.toLowerCase();
-      return lower.contains(title) || lower.contains(subtitle) || lower.contains(course);
+      return lower.contains(title) ||
+          lower.contains(subtitle) ||
+          lower.contains(course);
     }).toList();
 
     if (matchedBooks.isNotEmpty) {
       final firstBooks = matchedBooks.take(3).toList();
-      final summary = firstBooks.map((book) {
-        final label = book.subtitle.isNotEmpty ? book.subtitle : book.course;
-        return '- ${book.title}: $label';
-      }).join('\n');
+      final summary = firstBooks
+          .map((book) {
+            final label = book.subtitle.isNotEmpty
+                ? book.subtitle
+                : book.course;
+            return '- ${book.title}: $label';
+          })
+          .join('\n');
       return '''وجدت هذه الكتب المتطابقة:
 $summary
 يمكنك زيارة صفحة المكتبة لفتح أي كتاب أو عرضه مباشرة.''';
     }
 
-    final category = _books.where((book) => book.language.toLowerCase().contains('الإنجليزية')).isNotEmpty
+    final category =
+        _books
+            .where((book) => book.language.toLowerCase().contains('الإنجليزية'))
+            .isNotEmpty
         ? 'هناك كتب باللغة الإنجليزية والعربية في المكتبة.'
         : 'هناك عدة كتب جيدة متاحة في المكتبة.';
 
@@ -142,14 +174,18 @@ $summary
       final title = course.title.toLowerCase();
       final description = course.description.toLowerCase();
       final language = course.language.toLowerCase();
-      return lower.contains(title) || lower.contains(description) || lower.contains(language);
+      return lower.contains(title) ||
+          lower.contains(description) ||
+          lower.contains(language);
     }).toList();
 
     if (matchedCourses.isNotEmpty) {
       final firstCourses = matchedCourses.take(3).toList();
-      final summary = firstCourses.map((course) {
-        return '- ${course.title} (${course.language}) • ${course.lessonsCount}';
-      }).join('\n');
+      final summary = firstCourses
+          .map((course) {
+            return '- ${course.title} (${course.language}) • ${course.lessonsCount}';
+          })
+          .join('\n');
       return '''هذه بعض الكورسات المناسبة:
 $summary
 يمكنك فتح صفحة الكورسات للاطلاع على التفاصيل ومشاهدة الفيديوهات.''';
@@ -187,7 +223,10 @@ $summary
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(18),
-                margin: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.orangeSoft,
                   borderRadius: BorderRadius.circular(24),
@@ -208,7 +247,10 @@ $summary
                 )
               else if (_loadError != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 12,
+                  ),
                   child: Text(
                     _loadError!,
                     textAlign: TextAlign.center,
@@ -231,7 +273,10 @@ $summary
               const Divider(height: 1),
               Container(
                 color: AppColors.surface,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -257,7 +302,9 @@ $summary
                             vertical: 12,
                           ),
                           child: Icon(
-                            _isSending ? Icons.hourglass_top_rounded : Icons.send_rounded,
+                            _isSending
+                                ? Icons.hourglass_top_rounded
+                                : Icons.send_rounded,
                             color: Colors.white,
                           ),
                         ),
@@ -288,15 +335,15 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alignment = message.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final bubbleColor = message.isUser ? AppColors.orange : AppColors.surface;
     final textColor = message.isUser ? Colors.white : Colors.black87;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        mainAxisAlignment:
-            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: message.isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Flexible(
             child: Container(

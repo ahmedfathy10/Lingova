@@ -51,8 +51,10 @@ class NotificationReader {
   factory NotificationReader.fromJson(Map<String, dynamic> json) {
     return NotificationReader(
       id: (json['id'] ?? json['userId'] ?? json['user_id'] ?? '').toString(),
-      fullName: (json['fullName'] ?? json['full_name'] ?? json['name'] ?? '').toString(),
-      phone: (json['phone'] ?? json['userPhone'] ?? json['user_phone'] ?? '').toString(),
+      fullName: (json['fullName'] ?? json['full_name'] ?? json['name'] ?? '')
+          .toString(),
+      phone: (json['phone'] ?? json['userPhone'] ?? json['user_phone'] ?? '')
+          .toString(),
       readAt: (json['readAt'] ?? json['read_at'] ?? '').toString(),
     );
   }
@@ -267,7 +269,9 @@ class AdminApiService {
     String notificationId,
   ) async {
     final response = await getJson(
-      Uri.parse('${ApiConfig.baseUrl}/api/notifications/$notificationId/readers'),
+      Uri.parse(
+        '${ApiConfig.baseUrl}/api/notifications/$notificationId/readers',
+      ),
       headers: _headers(token),
     );
     final json = _readJson(response.body);

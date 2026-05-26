@@ -9,16 +9,14 @@ class SubscriptionApiService {
     required AuthUser user,
     required Course course,
   }) async {
-    final response = await postJson(
-      Uri.parse('${ApiConfig.baseUrl}/api/subscriptions'),
-      {
-        'studentId': user.id,
-        'courseTitle': course.title,
-        'courseLanguage': course.language,
-        'courseLevel': course.level,
-        'coursePrice': course.price,
-      },
-    );
+    final response =
+        await postJson(Uri.parse('${ApiConfig.baseUrl}/api/subscriptions'), {
+          'studentId': user.id,
+          'courseTitle': course.title,
+          'courseLanguage': course.language,
+          'courseLevel': course.level,
+          'coursePrice': course.price,
+        });
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return;

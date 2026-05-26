@@ -12,9 +12,11 @@ Future<void> main() async {
   await PushNotificationService.instance.prepareApp();
 
   final AuthUser? savedUser = await AuthStorageService.loadUser();
-  runApp(LingovaApp(
-    home: savedUser != null
-        ? MainScreen(user: savedUser)
-        : const LoginScreen(),
-  ));
+  runApp(
+    LingovaApp(
+      home: savedUser != null
+          ? MainScreen(user: savedUser)
+          : const LoginScreen(),
+    ),
+  );
 }

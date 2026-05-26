@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
 import '../../data/services/auth_storage_service.dart';
@@ -29,37 +29,51 @@ class MorePage extends StatelessWidget {
 
   void _openFeature(BuildContext context, String title, IconData icon) {
     if (title == 'الإعدادات') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
       return;
     }
 
     if (title == 'المساعد الذكي') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AiChatPage()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AiChatPage()));
       return;
     }
 
     if (title == 'الشهادات') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CertificatesPage()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const CertificatesPage()));
       return;
     }
 
     if (title == 'الشات المباشر') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LiveSupportPage()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const LiveSupportPage()));
       return;
     }
 
     if (title == 'المجتمع') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CommunityPage()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const CommunityPage()));
       return;
     }
 
     if (title == 'Vocabulary') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VocabularyPage()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const VocabularyPage()));
       return;
     }
 
     if (title == 'الملفات الصوتية') {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AudioResourcesPage()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AudioResourcesPage()));
       return;
     }
 
@@ -344,9 +358,9 @@ class _MoreFeatureScreenState extends State<_MoreFeatureScreen> {
   }
 
   void _showComingSoon(BuildContext context, String itemTitle) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('سيتم تفعيل $itemTitle قريباً')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('سيتم تفعيل $itemTitle قريباً')));
   }
 
   @override
