@@ -3,6 +3,7 @@ const fsSync = require('fs');
 const fs = require('fs/promises');
 const http = require('http');
 const path = require('path');
+const { Readable } = require('stream');
 let firebaseAdmin = null;
 try {
   firebaseAdmin = require('firebase-admin');
@@ -519,7 +520,7 @@ function readBody(request) {
 
     request.on('data', (chunk) => {
       body += chunk;
-      if (body.length > 10_000_000) {
+      if (body.length > 120_000_000) {
         request.destroy();
         reject(new Error('Request body is too large.'));
       }
@@ -3930,19 +3931,43 @@ async function createAudioResource(request, response) {
       }
     }
 
+    const course = String(payload.course || '').trim();
+    const courseLanguage = String(payload.courseLanguage || '').trim();
+    const level = String(payload.level || '').trim();
+    const fileType = String(payload.fileType || 'audio').trim() || 'audio';
+    const normalizedItems = [];
+    for (const item of items) {
+      normalizedItems.push({
+        ...item,
+        url: await ensureOnlineAudioUrl(item.url, {
+          course,
+          courseLanguage,
+          level,
+          title: item.relativePath || item.title || title,
+        }),
+      });
+    }
+
+    const storedUrl = await ensureOnlineAudioUrl(urlValue, {
+      course,
+      courseLanguage,
+      level,
+      title,
+    });
+
     const resources = await readAudioResources();
     const resource = {
       id: crypto.randomUUID(),
       title,
       description: String(payload.description || '').trim(),
-      course: String(payload.course || '').trim(),
-      courseLanguage: String(payload.courseLanguage || '').trim(),
-      level: String(payload.level || '').trim(),
+      course,
+      courseLanguage,
+      level,
       accessType: normalizeCoursePaymentType(payload.accessType),
-      fileType: String(payload.fileType || 'audio').trim() || 'audio',
+      fileType,
       linkType,
-      url: urlValue,
-      items,
+      url: storedUrl,
+      items: normalizedItems,
       createdAt: new Date().toISOString(),
       createdBy: adminSession.name || 'Admin',
     };
@@ -3962,6 +3987,158 @@ function parseGoogleDriveFolderId(value) {
   const queryMatch = raw.match(/[?&]id=([^&#]+)/);
   if (queryMatch) return queryMatch[1];
   return /^[a-zA-Z0-9_-]{10,}$/.test(raw) ? raw : '';
+}
+
+function parseGoogleDriveFileId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const fileMatch = raw.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+  if (fileMatch) return fileMatch[1];
+  const queryMatch = raw.match(/[?&]id=([^&#]+)/);
+  if (queryMatch) return queryMatch[1];
+  return /^[a-zA-Z0-9_-]{10,}$/.test(raw) ? raw : '';
+}
+
+async function proxyAudio(request, response, url) {
+  const sourceUrl = String(url.searchParams.get('url') || '').trim();
+  const sourceId = String(url.searchParams.get('id') || '').trim();
+  const fileId = sourceId || parseGoogleDriveFileId(sourceUrl);
+
+  if (!fileId && !/^https?:\/\//i.test(sourceUrl)) {
+    sendJson(response, 400, { message: 'Audio URL is required.' });
+    return;
+  }
+
+  const range = request.headers.range;
+  const upstreamUrl = fileId
+    ? googleDriveApiKey
+      ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(googleDriveApiKey)}`
+      : `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`
+    : sourceUrl;
+
+  try {
+    const upstream = await fetch(upstreamUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: range ? { Range: range } : undefined,
+    });
+    const contentType = String(upstream.headers.get('content-type') || '');
+    if (!upstream.ok || contentType.toLowerCase().includes('text/html')) {
+      sendJson(response, upstream.ok ? 502 : upstream.status, {
+        message:
+          'تعذر تشغيل ملف Google Drive مباشرة. تأكد أن الملف Public أو اضبط GOOGLE_DRIVE_API_KEY.',
+      });
+      return;
+    }
+
+    const headers = {
+      'Access-Control-Allow-Origin': '*',
+      'Accept-Ranges': upstream.headers.get('accept-ranges') || 'bytes',
+      'Cache-Control': 'public, max-age=3600',
+      'Content-Type': contentType || 'audio/mpeg',
+    };
+    const contentLength = upstream.headers.get('content-length');
+    const contentRange = upstream.headers.get('content-range');
+    if (contentLength) headers['Content-Length'] = contentLength;
+    if (contentRange) headers['Content-Range'] = contentRange;
+
+    response.writeHead(upstream.status, headers);
+    if (upstream.body) {
+      Readable.fromWeb(upstream.body).pipe(response);
+    } else {
+      response.end(Buffer.from(await upstream.arrayBuffer()));
+    }
+  } catch {
+    sendJson(response, 502, { message: 'تعذر تحميل ملف الصوت.' });
+  }
+}
+
+function parseDataUrl(value) {
+  const match = String(value || '').match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+  if (!match) return null;
+  const mimeType = match[1] || 'application/octet-stream';
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3] || '';
+  const buffer = isBase64
+    ? Buffer.from(payload, 'base64')
+    : Buffer.from(decodeURIComponent(payload), 'utf8');
+  return buffer.length > 0 ? { mimeType, buffer } : null;
+}
+
+function safeStoragePathPart(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[^\w.\-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 90) || 'audio';
+}
+
+function extensionForMime(mimeType) {
+  const type = String(mimeType || '').toLowerCase();
+  if (type.includes('mpeg') || type.includes('mp3')) return '.mp3';
+  if (type.includes('wav')) return '.wav';
+  if (type.includes('ogg')) return '.ogg';
+  if (type.includes('aac')) return '.aac';
+  if (type.includes('flac')) return '.flac';
+  if (type.includes('mp4') || type.includes('m4a')) return '.m4a';
+  return '.bin';
+}
+
+async function uploadSupabaseStorageObject(storagePath, buffer, contentType) {
+  if (!useSupabase) {
+    throw new Error('Supabase storage is not configured.');
+  }
+  const objectPath = `/storage/v1/object/lingova-audio/${storagePath
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')}`;
+  const uploadResponse = await fetch(`${supabaseUrl}${objectPath}`, {
+    method: 'POST',
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      'Content-Type': contentType || 'application/octet-stream',
+      'x-upsert': 'true',
+    },
+    body: buffer,
+  });
+  const text = await uploadResponse.text();
+  if (!uploadResponse.ok) {
+    throw new Error(
+      `Supabase storage upload failed (${uploadResponse.status}): ${text}`
+    );
+  }
+  return `${supabaseUrl}/storage/v1/object/public/lingova-audio/${storagePath
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')}`;
+}
+
+async function ensureOnlineAudioUrl(value, context) {
+  const urlValue = String(value || '').trim();
+  if (!urlValue.startsWith('data:')) {
+    return urlValue;
+  }
+  if (!useSupabase) {
+    throw new Error('Audio uploads require Supabase storage configuration.');
+  }
+  const parsed = parseDataUrl(urlValue);
+  if (!parsed) {
+    throw new Error('Invalid audio data URL.');
+  }
+  const extension = extensionForMime(parsed.mimeType);
+  const pathParts = [
+    safeStoragePathPart(context.courseLanguage),
+    safeStoragePathPart(context.course),
+    safeStoragePathPart(context.level),
+    `${Date.now()}-${crypto.randomUUID()}-${safeStoragePathPart(context.title)}${extension}`,
+  ].filter(Boolean);
+  return uploadSupabaseStorageObject(
+    pathParts.join('/'),
+    parsed.buffer,
+    parsed.mimeType
+  );
 }
 
 function googleDriveAudioMime(file) {
@@ -4046,6 +4223,114 @@ async function importGoogleDriveAudioFolder(request, response) {
     sendJson(response, 500, {
       message: 'تعذر قراءة فولدر Google Drive. تأكد أن الفولدر متاح للمشاركة.',
     });
+  }
+}
+
+async function checkOnlineAudioUrl(urlValue, expectedAudio = true) {
+  const url = String(urlValue || '').trim();
+  if (!url) {
+    return { ok: false, reason: 'missing_url' };
+  }
+  if (url.startsWith('data:')) {
+    return { ok: false, reason: 'stored_inline_data_url' };
+  }
+  if (url.startsWith('local-audio-folder:')) {
+    return { ok: true, reason: 'folder_placeholder' };
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    return { ok: false, reason: 'not_online_url' };
+  }
+
+  try {
+    let checked = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    if (!checked.ok || checked.status === 405) {
+      checked = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: { Range: 'bytes=0-1' },
+      });
+    }
+    const contentType = String(checked.headers.get('content-type') || '').toLowerCase();
+    if (!checked.ok) {
+      return { ok: false, reason: `http_${checked.status}` };
+    }
+    if (expectedAudio && contentType.includes('text/html')) {
+      return { ok: false, reason: 'html_instead_of_audio' };
+    }
+    return { ok: true, reason: contentType || 'online' };
+  } catch (error) {
+    return { ok: false, reason: 'request_failed' };
+  }
+}
+
+async function auditAudioResources(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const resources = await readAudioResources();
+    const issues = [];
+    let checkedFiles = 0;
+    let onlineFiles = 0;
+
+    for (const resource of resources) {
+      const publicResource = publicAudioResource(resource);
+      const items = Array.isArray(publicResource.items) ? publicResource.items : [];
+
+      if (publicResource.linkType === 'folder') {
+        if (items.length === 0) {
+          issues.push({
+            resourceId: publicResource.id,
+            title: publicResource.title,
+            type: 'folder_empty',
+            reason: 'folder_has_no_audio_items',
+          });
+        }
+        for (const item of items) {
+          checkedFiles += 1;
+          const result = await checkOnlineAudioUrl(item.url, item.fileType === 'audio');
+          if (result.ok) {
+            onlineFiles += 1;
+          } else {
+            issues.push({
+              resourceId: publicResource.id,
+              itemId: item.id,
+              title: item.title || publicResource.title,
+              type: 'item',
+              reason: result.reason,
+              url: item.url,
+            });
+          }
+        }
+      } else {
+        checkedFiles += 1;
+        const result = await checkOnlineAudioUrl(
+          publicResource.url,
+          publicResource.fileType === 'audio'
+        );
+        if (result.ok) {
+          onlineFiles += 1;
+        } else {
+          issues.push({
+            resourceId: publicResource.id,
+            title: publicResource.title,
+            type: 'resource',
+            reason: result.reason,
+            url: publicResource.url,
+          });
+        }
+      }
+    }
+
+    sendJson(response, 200, {
+      checkedResources: resources.length,
+      checkedFiles,
+      onlineFiles,
+      missingFiles: checkedFiles - onlineFiles,
+      issues,
+    });
+  } catch (error) {
+    sendJson(response, 500, { message: 'تعذر فحص ملفات الصوت.' });
   }
 }
 
@@ -4778,6 +5063,11 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/audio-proxy') {
+    await proxyAudio(request, response, url);
+    return;
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/notifications') {
     await listNotifications(request, response, url);
     return;
@@ -5062,6 +5352,13 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/api/admin/audio-resources/google-drive-folder') {
     if (request.method === 'POST') {
       await importGoogleDriveAudioFolder(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/admin/audio-resources/audit') {
+    if (request.method === 'GET') {
+      await auditAudioResources(request, response);
       return;
     }
   }
