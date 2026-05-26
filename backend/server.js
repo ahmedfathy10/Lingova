@@ -1095,6 +1095,96 @@ function monthKey(value = new Date()) {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 7);
 }
 
+function yearKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : String(date.getFullYear());
+}
+
+function resolveStatsPeriod(value) {
+  const period = String(value || 'day').trim().toLowerCase();
+  if (period === 'month' || period === 'year') {
+    return period;
+  }
+  return 'day';
+}
+
+function buildChartBuckets(period, now = new Date()) {
+  const buckets = [];
+  if (period === 'day') {
+    for (let offset = 29; offset >= 0; offset -= 1) {
+      const date = new Date(now);
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - offset);
+      buckets.push({
+        key: dateKey(date),
+        label: `${date.getDate()}/${date.getMonth() + 1}`,
+      });
+    }
+    return buckets;
+  }
+
+  if (period === 'month') {
+    for (let offset = 11; offset >= 0; offset -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      buckets.push({
+        key: monthKey(date),
+        label: `${date.getMonth() + 1}/${String(date.getFullYear()).slice(-2)}`,
+      });
+    }
+    return buckets;
+  }
+
+  for (let offset = 4; offset >= 0; offset -= 1) {
+    const year = now.getFullYear() - offset;
+    buckets.push({ key: String(year), label: String(year) });
+  }
+  return buckets;
+}
+
+function bucketKeyForTimestamp(timestamp, period) {
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  if (period === 'day') {
+    return dateKey(date);
+  }
+  if (period === 'month') {
+    return monthKey(date);
+  }
+  return yearKey(date);
+}
+
+function initSeriesMap(buckets) {
+  const map = new Map();
+  for (const bucket of buckets) {
+    map.set(bucket.key, 0);
+  }
+  return map;
+}
+
+function seriesFromMap(buckets, map) {
+  return buckets.map((bucket) => ({
+    label: bucket.label,
+    value: map.get(bucket.key) || 0,
+  }));
+}
+
+function createSeriesCounter(buckets, period) {
+  return {
+    period,
+    values: initSeriesMap(buckets),
+  };
+}
+
+function pushToSeries(counter, timestamp, amount = 1) {
+  const key = bucketKeyForTimestamp(timestamp, counter.period);
+  if (!key || !counter.values.has(key)) {
+    return;
+  }
+  counter.values.set(key, (counter.values.get(key) || 0) + amount);
+}
+
 function publicActivityLog(log) {
   return {
     id: log.id,
@@ -1458,11 +1548,36 @@ async function adminStats(request, response) {
   }
 
   try {
-    const users = await readUsers();
-    const courseParts = await readCourseParts();
-    const subscriptions = await readSubscriptions();
-    const sessions = await readAppSessions();
-    const logs = await readActivityLogs();
+    const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+    const period = resolveStatsPeriod(url.searchParams.get('period'));
+    const buckets = buildChartBuckets(period);
+    const [
+      users,
+      courseParts,
+      subscriptions,
+      sessions,
+      logs,
+      books,
+      vocabularyWords,
+      communityPosts,
+      exams,
+      examResults,
+      watchProgress,
+      supportMessages,
+    ] = await Promise.all([
+      readUsers(),
+      readCourseParts(),
+      readSubscriptions(),
+      readAppSessions(),
+      readActivityLogs(),
+      readBooks(),
+      readVocabularyWords(),
+      readCommunityPosts(),
+      readExams(),
+      readExamResults(),
+      readWatchProgress(),
+      readSupportMessages(),
+    ]);
     const students = users.filter((user) => normalizeRole(user.role) === 'student');
     const uniqueCourses = new Set(courseParts.map((part) => part.course));
     const registrationsByLanguage = students.reduce((result, user) => {
@@ -1473,13 +1588,26 @@ async function adminStats(request, response) {
     const now = new Date();
     const today = dateKey(now);
     const thisMonth = monthKey(now);
+    const thisYear = yearKey(now);
     const approvedSubscriptions = subscriptions.filter(
       (subscription) => (subscription.status || 'pending') === 'approved'
+    );
+    const pendingSubscriptions = subscriptions.filter(
+      (subscription) => (subscription.status || 'pending') === 'pending'
     );
     const revenueByCourseMap = new Map();
     let totalRevenue = 0;
     let todayRevenue = 0;
     let monthRevenue = 0;
+    let yearRevenue = 0;
+    const revenueSeries = createSeriesCounter(buckets, period);
+    const newStudentsSeries = createSeriesCounter(buckets, period);
+    const appOpensSeries = createSeriesCounter(buckets, period);
+    const enrollmentsSeries = createSeriesCounter(buckets, period);
+    const examAttemptsSeries = createSeriesCounter(buckets, period);
+    const subscriptionRequestsSeries = createSeriesCounter(buckets, period);
+    const watchSessionsSeries = createSeriesCounter(buckets, period);
+    const communityPostsSeries = createSeriesCounter(buckets, period);
 
     for (const subscription of approvedSubscriptions) {
       const amount = readMoney(
@@ -1504,6 +1632,7 @@ async function adminStats(request, response) {
       current.collectedAmount += amount;
       revenueByCourseMap.set(key, current);
       totalRevenue += amount;
+      pushToSeries(revenueSeries, paidAt, amount);
 
       if (dateKey(paidAt) === today) {
         todayRevenue += amount;
@@ -1511,6 +1640,44 @@ async function adminStats(request, response) {
       if (monthKey(paidAt) === thisMonth) {
         monthRevenue += amount;
       }
+      if (yearKey(paidAt) === thisYear) {
+        yearRevenue += amount;
+      }
+    }
+
+    for (const user of students) {
+      pushToSeries(newStudentsSeries, user.createdAt || now, 1);
+      for (const enrollment of user.enrollments || []) {
+        pushToSeries(enrollmentsSeries, enrollment.openedAt || now, 1);
+      }
+    }
+
+    for (const log of logs) {
+      if (log.action === 'app_open') {
+        pushToSeries(appOpensSeries, log.createdAt || now, 1);
+      }
+    }
+
+    for (const subscription of subscriptions) {
+      pushToSeries(
+        subscriptionRequestsSeries,
+        subscription.requestedAt || subscription.approvedAt || now,
+        1
+      );
+    }
+
+    for (const result of examResults) {
+      pushToSeries(examAttemptsSeries, result.submittedAt || now, 1);
+    }
+
+    for (const record of watchProgress) {
+      const watchedAt =
+        record.updatedAt || record.lastWatchedAt || record.createdAt || now;
+      pushToSeries(watchSessionsSeries, watchedAt, 1);
+    }
+
+    for (const post of communityPosts) {
+      pushToSeries(communityPostsSeries, post.createdAt || now, 1);
     }
 
     const activeThreshold = Date.now() - 2 * 60 * 1000;
@@ -1521,8 +1688,14 @@ async function adminStats(request, response) {
     const opensTodayCount = logs.filter(
       (log) => log.action === 'app_open' && dateKey(new Date(log.createdAt)) === today
     ).length;
+    const supportStudentIds = new Set(
+      supportMessages
+        .map((message) => String(message.userId || message.studentId || '').trim())
+        .filter(Boolean)
+    );
 
     sendJson(response, 200, {
+      period,
       studentsCount: students.length,
       activeUsersCount: users.filter(
         (user) => (user.status || 'active') === 'active'
@@ -1532,10 +1705,24 @@ async function adminStats(request, response) {
       courseRegistrationsCount: students.filter((user) => user.language).length,
       coursesCount: uniqueCourses.size || availableCoursesCount,
       registrationsByLanguage,
+      overview: {
+        pendingSubscriptions: pendingSubscriptions.length,
+        approvedSubscriptions: approvedSubscriptions.length,
+        examsCount: exams.length,
+        examAttemptsCount: examResults.length,
+        passedExamAttempts: examResults.filter((item) => item.passed).length,
+        communityPostsCount: communityPosts.length,
+        booksCount: books.length,
+        vocabularyCount: vocabularyWords.length,
+        watchProgressCount: watchProgress.length,
+        supportConversationsCount: supportStudentIds.size,
+        activityLogsCount: logs.length,
+      },
       revenue: {
         total: totalRevenue,
         today: todayRevenue,
         month: monthRevenue,
+        year: yearRevenue,
         byCourse: Array.from(revenueByCourseMap.values()).sort(
           (a, b) => b.collectedAmount - a.collectedAmount
         ),
@@ -1543,6 +1730,19 @@ async function adminStats(request, response) {
       activity: {
         activeNowCount,
         opensTodayCount,
+      },
+      charts: {
+        revenue: seriesFromMap(buckets, revenueSeries.values),
+        newStudents: seriesFromMap(buckets, newStudentsSeries.values),
+        appOpens: seriesFromMap(buckets, appOpensSeries.values),
+        enrollments: seriesFromMap(buckets, enrollmentsSeries.values),
+        examAttempts: seriesFromMap(buckets, examAttemptsSeries.values),
+        subscriptionRequests: seriesFromMap(
+          buckets,
+          subscriptionRequestsSeries.values
+        ),
+        watchSessions: seriesFromMap(buckets, watchSessionsSeries.values),
+        communityPosts: seriesFromMap(buckets, communityPostsSeries.values),
       },
     });
   } catch {

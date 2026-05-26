@@ -97,7 +97,148 @@ class AdminUserEnrollment {
   }
 }
 
+enum AdminDashboardPeriod { day, month, year }
+
+extension AdminDashboardPeriodApi on AdminDashboardPeriod {
+  String get apiValue {
+    switch (this) {
+      case AdminDashboardPeriod.day:
+        return 'day';
+      case AdminDashboardPeriod.month:
+        return 'month';
+      case AdminDashboardPeriod.year:
+        return 'year';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case AdminDashboardPeriod.day:
+        return 'يومي';
+      case AdminDashboardPeriod.month:
+        return 'شهري';
+      case AdminDashboardPeriod.year:
+        return 'سنوي';
+    }
+  }
+
+  String get rangeDescription {
+    switch (this) {
+      case AdminDashboardPeriod.day:
+        return 'آخر 30 يوم';
+      case AdminDashboardPeriod.month:
+        return 'آخر 12 شهر';
+      case AdminDashboardPeriod.year:
+        return 'آخر 5 سنوات';
+    }
+  }
+}
+
+class AdminChartPoint {
+  final String label;
+  final int value;
+
+  const AdminChartPoint({required this.label, required this.value});
+
+  factory AdminChartPoint.fromJson(Map<String, dynamic> json) {
+    return AdminChartPoint(
+      label: json['label']?.toString() ?? '',
+      value: AdminStats._readInt(json['value']),
+    );
+  }
+}
+
+class AdminDashboardCharts {
+  final List<AdminChartPoint> revenue;
+  final List<AdminChartPoint> newStudents;
+  final List<AdminChartPoint> appOpens;
+  final List<AdminChartPoint> enrollments;
+  final List<AdminChartPoint> examAttempts;
+  final List<AdminChartPoint> subscriptionRequests;
+  final List<AdminChartPoint> watchSessions;
+  final List<AdminChartPoint> communityPosts;
+
+  const AdminDashboardCharts({
+    required this.revenue,
+    required this.newStudents,
+    required this.appOpens,
+    required this.enrollments,
+    required this.examAttempts,
+    required this.subscriptionRequests,
+    required this.watchSessions,
+    required this.communityPosts,
+  });
+
+  factory AdminDashboardCharts.fromJson(Map<String, dynamic> json) {
+    List<AdminChartPoint> readSeries(String key) {
+      final raw = json[key] as List? ?? const [];
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map(AdminChartPoint.fromJson)
+          .toList();
+    }
+
+    return AdminDashboardCharts(
+      revenue: readSeries('revenue'),
+      newStudents: readSeries('newStudents'),
+      appOpens: readSeries('appOpens'),
+      enrollments: readSeries('enrollments'),
+      examAttempts: readSeries('examAttempts'),
+      subscriptionRequests: readSeries('subscriptionRequests'),
+      watchSessions: readSeries('watchSessions'),
+      communityPosts: readSeries('communityPosts'),
+    );
+  }
+}
+
+class AdminDashboardOverview {
+  final int pendingSubscriptions;
+  final int approvedSubscriptions;
+  final int examsCount;
+  final int examAttemptsCount;
+  final int passedExamAttempts;
+  final int communityPostsCount;
+  final int booksCount;
+  final int vocabularyCount;
+  final int watchProgressCount;
+  final int supportConversationsCount;
+  final int activityLogsCount;
+
+  const AdminDashboardOverview({
+    required this.pendingSubscriptions,
+    required this.approvedSubscriptions,
+    required this.examsCount,
+    required this.examAttemptsCount,
+    required this.passedExamAttempts,
+    required this.communityPostsCount,
+    required this.booksCount,
+    required this.vocabularyCount,
+    required this.watchProgressCount,
+    required this.supportConversationsCount,
+    required this.activityLogsCount,
+  });
+
+  factory AdminDashboardOverview.fromJson(Map<String, dynamic> json) {
+    return AdminDashboardOverview(
+      pendingSubscriptions: AdminStats._readInt(json['pendingSubscriptions']),
+      approvedSubscriptions: AdminStats._readInt(json['approvedSubscriptions']),
+      examsCount: AdminStats._readInt(json['examsCount']),
+      examAttemptsCount: AdminStats._readInt(json['examAttemptsCount']),
+      passedExamAttempts: AdminStats._readInt(json['passedExamAttempts']),
+      communityPostsCount: AdminStats._readInt(json['communityPostsCount']),
+      booksCount: AdminStats._readInt(json['booksCount']),
+      vocabularyCount: AdminStats._readInt(json['vocabularyCount']),
+      watchProgressCount: AdminStats._readInt(json['watchProgressCount']),
+      supportConversationsCount: AdminStats._readInt(
+        json['supportConversationsCount'],
+      ),
+      activityLogsCount: AdminStats._readInt(json['activityLogsCount']),
+    );
+  }
+}
+
 class AdminStats {
+  final AdminDashboardPeriod period;
   final int studentsCount;
   final int activeUsersCount;
   final int suspendedUsersCount;
@@ -106,8 +247,11 @@ class AdminStats {
   final Map<String, int> registrationsByLanguage;
   final AdminRevenueStats revenue;
   final AdminActivityStats activity;
+  final AdminDashboardOverview overview;
+  final AdminDashboardCharts charts;
 
   const AdminStats({
+    required this.period,
     required this.studentsCount,
     required this.activeUsersCount,
     required this.suspendedUsersCount,
@@ -116,6 +260,8 @@ class AdminStats {
     required this.registrationsByLanguage,
     required this.revenue,
     required this.activity,
+    required this.overview,
+    required this.charts,
   });
 
   factory AdminStats.fromJson(Map<String, dynamic> json) {
@@ -124,7 +270,18 @@ class AdminStats {
         (json['revenue'] as Map?)?.cast<String, dynamic>() ?? const {};
     final activityJson =
         (json['activity'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final overviewJson =
+        (json['overview'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final chartsJson =
+        (json['charts'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final periodRaw = json['period']?.toString() ?? 'day';
+    final period = switch (periodRaw) {
+      'month' => AdminDashboardPeriod.month,
+      'year' => AdminDashboardPeriod.year,
+      _ => AdminDashboardPeriod.day,
+    };
     return AdminStats(
+      period: period,
       studentsCount: _readInt(json['studentsCount']),
       activeUsersCount: _readInt(json['activeUsersCount']),
       suspendedUsersCount: _readInt(json['suspendedUsersCount']),
@@ -137,6 +294,8 @@ class AdminStats {
           : const {},
       revenue: AdminRevenueStats.fromJson(revenueJson),
       activity: AdminActivityStats.fromJson(activityJson),
+      overview: AdminDashboardOverview.fromJson(overviewJson),
+      charts: AdminDashboardCharts.fromJson(chartsJson),
     );
   }
 
@@ -149,12 +308,14 @@ class AdminRevenueStats {
   final int total;
   final int today;
   final int month;
+  final int year;
   final List<AdminCourseRevenue> byCourse;
 
   const AdminRevenueStats({
     required this.total,
     required this.today,
     required this.month,
+    required this.year,
     required this.byCourse,
   });
 
@@ -164,6 +325,7 @@ class AdminRevenueStats {
       total: AdminStats._readInt(json['total']),
       today: AdminStats._readInt(json['today']),
       month: AdminStats._readInt(json['month']),
+      year: AdminStats._readInt(json['year']),
       byCourse: rows
           .whereType<Map<String, dynamic>>()
           .map(AdminCourseRevenue.fromJson)

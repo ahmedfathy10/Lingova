@@ -82,9 +82,15 @@ class AdminApiService {
     throw AuthApiException(_readMessage(json, response.statusCode));
   }
 
-  Future<AdminStats> getStats(String token) async {
+  Future<AdminStats> getStats(
+    String token, {
+    AdminDashboardPeriod period = AdminDashboardPeriod.day,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/stats').replace(
+      queryParameters: {'period': period.apiValue},
+    );
     final response = await getJson(
-      Uri.parse('${ApiConfig.baseUrl}/api/admin/stats'),
+      uri,
       headers: _headers(token),
     );
     final json = _readJson(response.body);
