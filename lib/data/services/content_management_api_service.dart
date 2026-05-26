@@ -66,6 +66,19 @@ class ContentManagementApiService {
     throw AuthApiException(_readMessage(_readJson(response.body)));
   }
 
+  Future<int> deleteVocabularyWords(String token, List<String> ids) async {
+    final response = await postJson(
+      Uri.parse('${ApiConfig.baseUrl}/api/admin/vocabulary/bulk-delete'),
+      {'ids': ids},
+      headers: _headers(token),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode == 200) {
+      return (json['deletedCount'] as num?)?.toInt() ?? ids.length;
+    }
+    throw AuthApiException(_readMessage(json));
+  }
+
   Future<List<AudioResource>> getAudioResources({String? token}) async {
     final response = await getJson(
       Uri.parse(

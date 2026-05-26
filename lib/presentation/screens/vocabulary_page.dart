@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_colors.dart';
+import '../../core/vocabulary_hierarchy.dart';
 import '../../data/models/vocabulary_word.dart';
 import '../../data/services/content_management_api_service.dart';
 
@@ -15,6 +16,7 @@ class VocabularyPage extends StatefulWidget {
 
 class _VocabularyPageState extends State<VocabularyPage> {
   static const _favoritesKey = 'favorite_vocabulary_words';
+  static const _dailyWordLimit = 50;
   final _contentService = ContentManagementApiService();
   final _speechChannel = const MethodChannel('lingova/speech');
   final _searchController = TextEditingController();
@@ -23,6 +25,9 @@ class _VocabularyPageState extends State<VocabularyPage> {
   int _flashcardIndex = 0;
   bool _showFlashcardAnswer = false;
   String _query = '';
+  VocabularyCourseRef? _selectedCourse;
+  String? _selectedLevel;
+  String? _selectedLesson;
   late Future<List<VocabularyWord>> _wordsFuture;
 
   @override
@@ -92,23 +97,43 @@ class _VocabularyPageState extends State<VocabularyPage> {
   }
 
   List<VocabularyWord> _dailyWords(List<VocabularyWord> words) {
+    if (words.isEmpty) return words;
     final now = DateTime.now();
     final daySeed = DateTime(
       now.year,
       now.month,
       now.day,
     ).difference(DateTime(now.year)).inDays;
-    return List.generate(5, (index) {
+    final limit = words.length < _dailyWordLimit ? words.length : _dailyWordLimit;
+    return List.generate(limit, (index) {
       return words[(daySeed + index * 3) % words.length];
     });
   }
 
+  List<VocabularyWord> _lessonWords(List<VocabularyWord> allWords) {
+    final course = _selectedCourse;
+    final level = _selectedLevel;
+    final lesson = _selectedLesson;
+    if (course == null || level == null || lesson == null) {
+      return allWords;
+    }
+    return VocabularyHierarchy.wordsForLesson(
+      words: allWords,
+      course: course,
+      level: level,
+      lesson: lesson,
+    );
+  }
+
   List<VocabularyWord> _visibleWords(List<VocabularyWord> words) {
-    final dailyWords = _dailyWords(words);
+    final scoped = _lessonWords(words);
+    final dailyWords = _selectedLesson == null
+        ? _dailyWords(scoped)
+        : scoped;
     final source = switch (_selectedView) {
       0 => dailyWords,
-      1 => words.where((word) => _favoriteIds.contains(word.id)).toList(),
-      _ => words,
+      1 => scoped.where((word) => _favoriteIds.contains(word.id)).toList(),
+      _ => scoped,
     };
 
     if (_query.isEmpty) {
@@ -117,8 +142,24 @@ class _VocabularyPageState extends State<VocabularyPage> {
     return source.where((word) {
       return word.word.toLowerCase().contains(_query) ||
           word.meaning.contains(_query) ||
-          word.example.toLowerCase().contains(_query);
+          word.example.toLowerCase().contains(_query) ||
+          word.translation.contains(_query);
     }).toList();
+  }
+
+  void _backOneLevel() {
+    setState(() {
+      if (_selectedLesson != null) {
+        _selectedLesson = null;
+      } else if (_selectedLevel != null) {
+        _selectedLevel = null;
+      } else {
+        _selectedCourse = null;
+      }
+      _selectedView = 0;
+      _flashcardIndex = 0;
+      _showFlashcardAnswer = false;
+    });
   }
 
   @override
@@ -131,14 +172,40 @@ class _VocabularyPageState extends State<VocabularyPage> {
             future: _wordsFuture,
             builder: (context, snapshot) {
               final words = snapshot.data ?? _vocabulary;
+              if (_selectedCourse == null) {
+                return _VocabularyCoursesView(
+                  words: words,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onSelectCourse: (course) => setState(() => _selectedCourse = course),
+                );
+              }
+              if (_selectedLevel == null) {
+                return _VocabularyLevelsView(
+                  course: _selectedCourse!,
+                  words: words,
+                  onBack: _backOneLevel,
+                  onSelectLevel: (level) => setState(() => _selectedLevel = level),
+                );
+              }
+              if (_selectedLesson == null) {
+                return _VocabularyLessonsView(
+                  course: _selectedCourse!,
+                  level: _selectedLevel!,
+                  words: words,
+                  onBack: _backOneLevel,
+                  onSelectLesson: (lesson) => setState(() => _selectedLesson = lesson),
+                );
+              }
+
+              final scopedWords = _lessonWords(words);
               final visibleWords = _visibleWords(words);
-              final dailyWords = _dailyWords(words);
+              final dailyWords = _dailyWords(scopedWords);
               final flashcards = _favoriteIds.isEmpty
                   ? dailyWords
-                  : words
+                  : scopedWords
                         .where((word) => _favoriteIds.contains(word.id))
                         .toList();
-              if (_flashcardIndex >= flashcards.length) {
+              if (_flashcardIndex >= flashcards.length && flashcards.isNotEmpty) {
                 _flashcardIndex = 0;
               }
               return ListView(
@@ -147,31 +214,41 @@ class _VocabularyPageState extends State<VocabularyPage> {
                   Row(
                     children: [
                       IconButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
+                        onPressed: _backOneLevel,
                         icon: const Icon(Icons.arrow_forward_rounded),
                       ),
                       const SizedBox(width: 4),
-                      const Expanded(
-                        child: Text(
-                          'Vocabulary',
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                          ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _selectedLesson!,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              '${_selectedCourse!.label} • $_selectedLevel',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(color: AppColors.textMuted),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'كلمات يومية مع النطق والمراجعة بالكروت.',
+                    '${scopedWords.length} كلمة في هذا الدرس',
                     textAlign: TextAlign.right,
                     style: TextStyle(color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 18),
                   _VocabularyHero(
-                    dailyCount: dailyWords.length,
+                    dailyCount: scopedWords.length,
                     favoritesCount: _favoriteIds.length,
                   ),
                   const SizedBox(height: 18),
@@ -185,7 +262,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
                     },
                   ),
                   const SizedBox(height: 14),
-                  if (_selectedView == 2)
+                  if (_selectedView == 2 && flashcards.isNotEmpty)
                     _FlashcardReview(
                       word: flashcards[_flashcardIndex],
                       current: _flashcardIndex + 1,
@@ -329,7 +406,7 @@ class _ViewSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      (title: 'اليوم', icon: Icons.calendar_today_rounded),
+      (title: 'كل الكلمات', icon: Icons.menu_book_rounded),
       (title: 'المحفوظة', icon: Icons.favorite_rounded),
       (title: 'Flashcards', icon: Icons.style_rounded),
     ];
@@ -688,6 +765,232 @@ class _EmptyVocabularyState extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _VocabularyCoursesView extends StatelessWidget {
+  final List<VocabularyWord> words;
+  final VoidCallback onBack;
+  final ValueChanged<VocabularyCourseRef> onSelectCourse;
+
+  const _VocabularyCoursesView({
+    required this.words,
+    required this.onBack,
+    required this.onSelectCourse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final courses = VocabularyHierarchy.coursesFromData(parts: const [], words: words);
+    return ListView(
+      padding: const EdgeInsets.all(22),
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
+            const Expanded(
+              child: Text(
+                'المفردات',
+                textAlign: TextAlign.right,
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'اختر الكورس ثم الوحدة ثم الدرس.',
+          textAlign: TextAlign.right,
+          style: TextStyle(color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 18),
+        if (courses.isEmpty)
+          Text(
+            'لا توجد كلمات مرتبطة بكورسات بعد.',
+            textAlign: TextAlign.right,
+            style: TextStyle(color: AppColors.textMuted),
+          )
+        else
+          ...courses.map((course) {
+            final count = VocabularyHierarchy.wordCountForCourse(words, course);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Material(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                child: ListTile(
+                  onTap: () => onSelectCourse(course),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: AppColors.border),
+                  ),
+                  title: Text(course.label, textAlign: TextAlign.right),
+                  subtitle: Text(
+                    '$count كلمة',
+                    textAlign: TextAlign.right,
+                  ),
+                  trailing: const Icon(Icons.chevron_left_rounded),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _VocabularyLevelsView extends StatelessWidget {
+  final VocabularyCourseRef course;
+  final List<VocabularyWord> words;
+  final VoidCallback onBack;
+  final ValueChanged<String> onSelectLevel;
+
+  const _VocabularyLevelsView({
+    required this.course,
+    required this.words,
+    required this.onBack,
+    required this.onSelectLevel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final levels = VocabularyHierarchy.levelsForCourse(
+      parts: const [],
+      words: words,
+      course: course,
+    );
+    return ListView(
+      padding: const EdgeInsets.all(22),
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
+            Expanded(
+              child: Text(
+                course.label,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'اختر الوحدة / المستوى',
+          textAlign: TextAlign.right,
+          style: TextStyle(color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 18),
+        ...levels.map((level) {
+          final count = VocabularyHierarchy.wordCountForLevel(words, course, level);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: ListTile(
+              onTap: () => onSelectLevel(level),
+              tileColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppColors.border),
+              ),
+              title: Text(level, textAlign: TextAlign.right),
+              subtitle: Text('$count كلمة', textAlign: TextAlign.right),
+              trailing: const Icon(Icons.chevron_left_rounded),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _VocabularyLessonsView extends StatelessWidget {
+  final VocabularyCourseRef course;
+  final String level;
+  final List<VocabularyWord> words;
+  final VoidCallback onBack;
+  final ValueChanged<String> onSelectLesson;
+
+  const _VocabularyLessonsView({
+    required this.course,
+    required this.level,
+    required this.words,
+    required this.onBack,
+    required this.onSelectLesson,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lessons = VocabularyHierarchy.lessonsForLevel(
+      parts: const [],
+      words: words,
+      course: course,
+      level: level,
+    );
+    return ListView(
+      padding: const EdgeInsets.all(22),
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    level,
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    course.label,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'اختر الدرس / اليونت',
+          textAlign: TextAlign.right,
+          style: TextStyle(color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 18),
+        ...lessons.map((lesson) {
+          final count = VocabularyHierarchy.wordCountForLesson(
+            words,
+            course,
+            level,
+            lesson,
+          );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: ListTile(
+              onTap: () => onSelectLesson(lesson),
+              tileColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppColors.border),
+              ),
+              title: Text(lesson, textAlign: TextAlign.right),
+              subtitle: Text('$count كلمة', textAlign: TextAlign.right),
+              trailing: const Icon(Icons.chevron_left_rounded),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

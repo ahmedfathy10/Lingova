@@ -43,7 +43,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: RefreshIndicator(
       onRefresh: () async => _refresh(),
       child: FutureBuilder<AdminStats>(
         future: _statsFuture,
@@ -188,7 +190,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 child: Column(
                   children: [
                     Wrap(
-                      alignment: WrapAlignment.end,
+                      alignment: WrapAlignment.start,
+                      textDirection: TextDirection.rtl,
                       spacing: 12,
                       runSpacing: 6,
                       children: const [
@@ -288,6 +291,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           );
         },
       ),
+    ),
     );
   }
 }
@@ -311,14 +315,19 @@ class _DashboardHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          textDirection: TextDirection.rtl,
           children: [
+            IconButton(
+              tooltip: 'تحديث',
+              onPressed: onRefresh,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
+                  _RtlText(
                     'لوحة المراقبة',
-                    textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w900,
@@ -326,30 +335,25 @@ class _DashboardHeader extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  _RtlText(
                     'متابعة شاملة للمنصة — $rangeDescription',
-                    textAlign: TextAlign.right,
                     style: TextStyle(color: AppColors.textMuted),
                   ),
                 ],
               ),
             ),
-            IconButton(
-              tooltip: 'تحديث',
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
           ],
         ),
         const SizedBox(height: 14),
         Wrap(
-          alignment: WrapAlignment.end,
+          alignment: WrapAlignment.start,
+          textDirection: TextDirection.rtl,
           spacing: 8,
           runSpacing: 8,
           children: AdminDashboardPeriod.values.map((item) {
             final selected = item == period;
             return ChoiceChip(
-              label: Text(item.label),
+              label: _RtlText(item.label),
               selected: selected,
               onSelected: (_) => onPeriodChanged(item),
               selectedColor: AppColors.orange.withValues(alpha: 0.22),
@@ -417,6 +421,7 @@ class _KpiGrid extends StatelessWidget {
             final item = items[index];
             return _DashboardCard(
               child: Row(
+                textDirection: TextDirection.rtl,
                 children: [
                   Container(
                     width: 46,
@@ -430,12 +435,11 @@ class _KpiGrid extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
+                        _RtlText(
                           item.displayValue,
-                          textAlign: TextAlign.right,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -445,9 +449,8 @@ class _KpiGrid extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
+                        _RtlText(
                           item.title,
-                          textAlign: TextAlign.right,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -505,17 +508,17 @@ class _RevenueSummaryStrip extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
+                    _RtlText(
                       _money(tile.$2),
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 18,
                       ),
                     ),
-                    Text(
+                    _RtlText(
                       'إيراد ${tile.$1}',
                       style: TextStyle(
                         color: AppColors.textMuted,
@@ -553,9 +556,8 @@ class _ChartPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          _RtlText(
             title,
-            textAlign: TextAlign.right,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w900,
@@ -563,9 +565,8 @@ class _ChartPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          _RtlText(
             subtitle,
-            textAlign: TextAlign.right,
             style: TextStyle(color: AppColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
@@ -623,13 +624,15 @@ class _AreaLineChart extends StatelessWidget {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(),
-          rightTitles: const AxisTitles(),
-          leftTitles: AxisTitles(
+          leftTitles: const AxisTitles(),
+          rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 44,
               getTitlesWidget: (value, meta) => Text(
                 _compactNumber(value.toInt()),
+                textAlign: TextAlign.right,
+                textDirection: TextDirection.rtl,
                 style: TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
             ),
@@ -648,6 +651,8 @@ class _AreaLineChart extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     points[index].label,
+                    textAlign: TextAlign.center,
+                    textDirection: TextDirection.rtl,
                     style: TextStyle(color: AppColors.textMuted, fontSize: 9),
                   ),
                 );
@@ -710,32 +715,15 @@ class _MultiLineChart extends StatelessWidget {
     return Column(
       children: [
         Wrap(
-          alignment: WrapAlignment.end,
+          alignment: WrapAlignment.start,
+          textDirection: TextDirection.rtl,
           spacing: 12,
           runSpacing: 6,
           children: series
               .map(
-                (item) => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: item.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      item.label,
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                (item) => _ChartLegendDot(
+                  label: item.label,
+                  color: item.color,
                 ),
               )
               .toList(),
@@ -757,13 +745,15 @@ class _MultiLineChart extends StatelessWidget {
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
                 topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: AxisTitles(
+                leftTitles: const AxisTitles(),
+                rightTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 32,
                     getTitlesWidget: (value, meta) => Text(
                       _compactNumber(value.toInt()),
+                      textAlign: TextAlign.right,
+                      textDirection: TextDirection.rtl,
                       style: TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 10,
@@ -786,6 +776,8 @@ class _MultiLineChart extends StatelessWidget {
                       }
                       return Text(
                         points[index].label,
+                        textAlign: TextAlign.center,
+                        textDirection: TextDirection.rtl,
                         style: TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 9,
@@ -856,13 +848,15 @@ class _GroupedBarChart extends StatelessWidget {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(),
-          rightTitles: const AxisTitles(),
-          leftTitles: AxisTitles(
+          leftTitles: const AxisTitles(),
+          rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 28,
               getTitlesWidget: (value, meta) => Text(
                 _compactNumber(value.toInt()),
+                textAlign: TextAlign.right,
+                textDirection: TextDirection.rtl,
                 style: TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
             ),
@@ -877,6 +871,8 @@ class _GroupedBarChart extends StatelessWidget {
                 final label = groups.first.points[index].label;
                 return Text(
                   label,
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.rtl,
                   style: TextStyle(color: AppColors.textMuted, fontSize: 9),
                 );
               },
@@ -929,13 +925,15 @@ class _SimpleBarChart extends StatelessWidget {
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(),
-          rightTitles: const AxisTitles(),
-          leftTitles: AxisTitles(
+          leftTitles: const AxisTitles(),
+          rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 28,
               getTitlesWidget: (value, meta) => Text(
                 _compactNumber(value.toInt()),
+                textAlign: TextAlign.right,
+                textDirection: TextDirection.rtl,
                 style: TextStyle(color: AppColors.textMuted, fontSize: 10),
               ),
             ),
@@ -952,6 +950,8 @@ class _SimpleBarChart extends StatelessWidget {
                 }
                 return Text(
                   points[index].label,
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.rtl,
                   style: TextStyle(color: AppColors.textMuted, fontSize: 9),
                 );
               },
@@ -1033,28 +1033,15 @@ class _LanguagePieChart extends StatelessWidget {
           flex: 2,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: entries.map((entry) {
               final index = entries.indexOf(entry);
               final color = colors[index % colors.length];
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
+                  textDirection: TextDirection.rtl,
                   children: [
-                    Text(
-                      entry.value.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    const Spacer(),
-                    Flexible(
-                      child: Text(
-                        entry.key,
-                        textAlign: TextAlign.right,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Container(
                       width: 10,
                       height: 10,
@@ -1062,6 +1049,19 @@ class _LanguagePieChart extends StatelessWidget {
                         color: color,
                         shape: BoxShape.circle,
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RtlText(
+                        entry.key,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _RtlText(
+                      entry.value.toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ],
                 ),
@@ -1086,9 +1086,8 @@ class _TopCoursesPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          _RtlText(
             'أعلى الكورسات إيرادًا',
-            textAlign: TextAlign.right,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w900,
@@ -1097,9 +1096,8 @@ class _TopCoursesPanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           if (topRows.isEmpty)
-            Text(
+            _RtlText(
               'لا توجد مشتريات مدفوعة حتى الآن.',
-              textAlign: TextAlign.right,
               style: TextStyle(color: AppColors.textMuted),
             )
           else
@@ -1111,23 +1109,17 @@ class _TopCoursesPanel extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          _money(row.collectedAmount),
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        const Spacer(),
-                        Expanded(
-                          child: Text(
-                            '${row.courseLanguage} — ${row.courseTitle}',
-                            textAlign: TextAlign.right,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ],
+                    _RtlText(
+                      '${row.courseLanguage} — ${row.courseTitle}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    _RtlText(
+                      _money(row.collectedAmount),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 8),
                     ClipRRect(
@@ -1179,9 +1171,8 @@ class _PlatformOverviewPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          _RtlText(
             'نظرة على المنصة',
-            textAlign: TextAlign.right,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w900,
@@ -1215,21 +1206,23 @@ class _PlatformOverviewPanel extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(tile.$3, size: 18, color: AppColors.orange),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Icon(tile.$3, size: 18, color: AppColors.orange),
+                        ),
                         const Spacer(),
-                        Text(
+                        _RtlText(
                           tile.$2.toString(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 18,
                           ),
                         ),
-                        Text(
+                        _RtlText(
                           tile.$1,
-                          textAlign: TextAlign.right,
                           style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 11,
@@ -1285,6 +1278,7 @@ class _ChartLegendDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      textDirection: TextDirection.rtl,
       children: [
         Container(
           width: 10,
@@ -1292,7 +1286,7 @@ class _ChartLegendDot extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(
+        _RtlText(
           label,
           style: TextStyle(
             color: AppColors.textMuted,
@@ -1305,15 +1299,40 @@ class _ChartLegendDot extends StatelessWidget {
   }
 }
 
+class _RtlText extends StatelessWidget {
+  final String data;
+  final TextStyle? style;
+  final int? maxLines;
+  final TextOverflow? overflow;
+
+  const _RtlText(
+    this.data, {
+    this.style,
+    this.maxLines,
+    this.overflow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      data,
+      textAlign: TextAlign.right,
+      textDirection: TextDirection.rtl,
+      maxLines: maxLines,
+      overflow: overflow,
+      style: style,
+    );
+  }
+}
+
 class _ChartEmptyState extends StatelessWidget {
   const _ChartEmptyState();
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
+      child: _RtlText(
         'لا توجد بيانات كافية في هذه الفترة.',
-        textAlign: TextAlign.center,
         style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w700),
       ),
     );
@@ -1328,7 +1347,7 @@ class _DashboardError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
+      child: _RtlText(
         message,
         style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w700),
       ),

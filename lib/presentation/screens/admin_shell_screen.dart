@@ -7,6 +7,7 @@ import 'admin_dashboard_page.dart';
 import 'admin_support_chat_page.dart';
 import 'admin_community_page.dart';
 import 'admin_learning_content_pages.dart';
+import 'admin_vocabulary_pages.dart';
 import 'admin_registration_form_settings_page.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';

@@ -14,135 +14,6 @@ import '../../data/services/audio_folder_picker.dart';
 import '../../data/services/auth_api_service.dart';
 import '../../data/services/content_management_api_service.dart';
 
-class AdminVocabularyPage extends StatefulWidget {
-  final AdminSession session;
-
-  const AdminVocabularyPage({super.key, required this.session});
-
-  @override
-  State<AdminVocabularyPage> createState() => _AdminVocabularyPageState();
-}
-
-class _AdminVocabularyPageState extends State<AdminVocabularyPage> {
-  final _service = ContentManagementApiService();
-  final _adminService = AdminApiService();
-  late Future<List<VocabularyWord>> _future;
-  late Future<List<AdminCoursePart>> _coursesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _service.getVocabulary(token: widget.session.token);
-    _coursesFuture = _adminService.getCourseParts(widget.session.token);
-  }
-
-  void _refresh() {
-    setState(
-      () => _future = _service.getVocabulary(token: widget.session.token),
-    );
-  }
-
-  Future<void> _add() async {
-    final parts = await _coursesFuture;
-    if (!mounted) return;
-    final result = await showDialog<VocabularyWord>(
-      context: context,
-      builder: (_) => _VocabularyWordDialog(parts: parts),
-    );
-    if (result == null) return;
-    await _service.createVocabularyWord(widget.session.token, result);
-    _refresh();
-  }
-
-  Future<void> _bulkAdd() async {
-    final parts = await _coursesFuture;
-    if (!mounted) return;
-    final result = await showDialog<List<VocabularyWord>>(
-      context: context,
-      builder: (_) => _VocabularyBulkDialog(parts: parts),
-    );
-    if (result == null || result.isEmpty) return;
-    final count = await _service.createVocabularyWords(
-      widget.session.token,
-      result,
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('تمت إضافة $count كلمة.')));
-    _refresh();
-  }
-
-  Future<void> _delete(VocabularyWord word) async {
-    await _service.deleteVocabularyWord(widget.session.token, word.id);
-    _refresh();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Vocabulary'),
-          actions: [
-            IconButton(
-              onPressed: _bulkAdd,
-              tooltip: 'استيراد ملف',
-              icon: const Icon(Icons.upload_file_rounded),
-            ),
-            IconButton(
-              onPressed: () => _add(),
-              icon: const Icon(Icons.add_rounded),
-            ),
-          ],
-        ),
-        body: FutureBuilder<List<VocabularyWord>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final words = snapshot.data ?? const <VocabularyWord>[];
-            if (words.isEmpty) {
-              return const Center(child: Text('لا توجد كلمات بعد.'));
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(18),
-              itemCount: words.length,
-              itemBuilder: (context, index) {
-                final word = words[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(word.word, textAlign: TextAlign.right),
-                    subtitle: Text(
-                      [
-                        word.meaning,
-                        if (word.translation.isNotEmpty) word.translation,
-                        if (word.course.isNotEmpty ||
-                            word.level.isNotEmpty ||
-                            word.lesson.isNotEmpty)
-                          '${word.course} • ${word.level} • ${word.lesson}',
-                        if (word.example.isNotEmpty) word.example,
-                      ].join('\n'),
-                      textAlign: TextAlign.right,
-                    ),
-                    isThreeLine: true,
-                    trailing: IconButton(
-                      onPressed: () => _delete(word),
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
 class AdminAudioResourcesPage extends StatefulWidget {
   final AdminSession session;
 
@@ -937,16 +808,27 @@ bool _isGerman(String value) {
       text == 'de';
 }
 
-class _VocabularyWordDialog extends StatefulWidget {
+class VocabularyWordFormDialog extends StatefulWidget {
   final List<AdminCoursePart> parts;
+  final AdminCoursePart? initialCourse;
+  final String? initialLevel;
+  final String? initialLesson;
+  final bool lockCourseContext;
 
-  const _VocabularyWordDialog({required this.parts});
+  const VocabularyWordFormDialog({
+    required this.parts,
+    this.initialCourse,
+    this.initialLevel,
+    this.initialLesson,
+    this.lockCourseContext = false,
+  });
 
   @override
-  State<_VocabularyWordDialog> createState() => _VocabularyWordDialogState();
+  State<VocabularyWordFormDialog> createState() =>
+      _VocabularyWordFormDialogState();
 }
 
-class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
+class _VocabularyWordFormDialogState extends State<VocabularyWordFormDialog> {
   final _word = TextEditingController();
   final _meaning = TextEditingController();
   final _pronunciation = TextEditingController();
@@ -956,6 +838,18 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
   String _languageCode = 'en';
   String? _courseKey;
   String _level = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final course = widget.initialCourse;
+    if (course != null) {
+      _courseKey = '${course.language}|${course.course}';
+      _level = widget.initialLevel?.trim() ?? '';
+      _lesson.text = widget.initialLesson?.trim() ?? '';
+      _languageCode = _isGerman(course.language) ? 'de' : 'en';
+    }
+  }
 
   List<AdminCoursePart> get _courses {
     final map = <String, AdminCoursePart>{};
@@ -999,6 +893,7 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
         break;
       }
     }
+    final lockContext = widget.lockCourseContext;
     return AlertDialog(
       title: const Text('إضافة كلمة'),
       content: SingleChildScrollView(
@@ -1007,23 +902,28 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
           children: [
             TextField(
               controller: _word,
-              decoration: const InputDecoration(labelText: 'Word'),
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(labelText: 'الكلمة'),
             ),
             TextField(
               controller: _meaning,
-              decoration: const InputDecoration(labelText: 'Meaning'),
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(labelText: 'المعنى'),
             ),
             TextField(
               controller: _translation,
-              decoration: const InputDecoration(labelText: 'Translation'),
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(labelText: 'الترجمة'),
             ),
             TextField(
               controller: _pronunciation,
-              decoration: const InputDecoration(labelText: 'Pronunciation'),
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(labelText: 'النطق'),
             ),
             TextField(
               controller: _example,
-              decoration: const InputDecoration(labelText: 'Example'),
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(labelText: 'مثال'),
             ),
             DropdownButtonFormField<String>(
               initialValue: _languageCode,
@@ -1031,39 +931,57 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
                 DropdownMenuItem(value: 'en', child: Text('English')),
                 DropdownMenuItem(value: 'de', child: Text('German')),
               ],
-              onChanged: (value) =>
-                  setState(() => _languageCode = value ?? 'en'),
+              onChanged: lockContext
+                  ? null
+                  : (value) => setState(() => _languageCode = value ?? 'en'),
             ),
-            DropdownButtonFormField<String>(
-              initialValue: _courseKey,
-              decoration: const InputDecoration(labelText: 'الكورس'),
-              items: courses
-                  .map(
-                    (course) => DropdownMenuItem(
-                      value: '${course.language}|${course.course}',
-                      child: Text('${course.language} - ${course.course}'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() {
-                _courseKey = value;
-                _level = '';
-              }),
-            ),
+            if (!lockContext)
+              DropdownButtonFormField<String>(
+                initialValue: _courseKey,
+                decoration: const InputDecoration(labelText: 'الكورس'),
+                items: courses
+                    .map(
+                      (course) => DropdownMenuItem(
+                        value: '${course.language}|${course.course}',
+                        child: Text('${course.language} - ${course.course}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _courseKey = value;
+                  _level = '';
+                }),
+              )
+            else if (selectedCourse != null)
+              ListTile(
+                title: Text(
+                  '${selectedCourse.language} - ${selectedCourse.course}',
+                  textAlign: TextAlign.right,
+                ),
+                subtitle: const Text(
+                  'الكورس المحدد',
+                  textAlign: TextAlign.right,
+                ),
+              ),
             DropdownButtonFormField<String>(
               initialValue: _level.isEmpty ? null : _level,
-              decoration: const InputDecoration(labelText: 'الليفيل'),
+              decoration: const InputDecoration(labelText: 'الوحدة / المستوى'),
               items: _levels
                   .map(
                     (level) =>
                         DropdownMenuItem(value: level, child: Text(level)),
                   )
                   .toList(),
-              onChanged: (value) => setState(() => _level = value ?? ''),
+              onChanged: lockContext && widget.initialLevel?.isNotEmpty == true
+                  ? null
+                  : (value) => setState(() => _level = value ?? ''),
             ),
             TextField(
               controller: _lesson,
-              decoration: const InputDecoration(labelText: 'الدرس'),
+              textAlign: TextAlign.right,
+              readOnly:
+                  lockContext && widget.initialLesson?.trim().isNotEmpty == true,
+              decoration: const InputDecoration(labelText: 'الدرس / اليونت'),
             ),
           ],
         ),
@@ -1099,16 +1017,27 @@ class _VocabularyWordDialogState extends State<_VocabularyWordDialog> {
   }
 }
 
-class _VocabularyBulkDialog extends StatefulWidget {
+class VocabularyBulkImportDialog extends StatefulWidget {
   final List<AdminCoursePart> parts;
+  final AdminCoursePart? initialCourse;
+  final String? initialLevel;
+  final String? initialLesson;
+  final bool lockCourseContext;
 
-  const _VocabularyBulkDialog({required this.parts});
+  const VocabularyBulkImportDialog({
+    required this.parts,
+    this.initialCourse,
+    this.initialLevel,
+    this.initialLesson,
+    this.lockCourseContext = false,
+  });
 
   @override
-  State<_VocabularyBulkDialog> createState() => _VocabularyBulkDialogState();
+  State<VocabularyBulkImportDialog> createState() =>
+      _VocabularyBulkImportDialogState();
 }
 
-class _VocabularyBulkDialogState extends State<_VocabularyBulkDialog> {
+class _VocabularyBulkImportDialogState extends State<VocabularyBulkImportDialog> {
   final _lesson = TextEditingController();
   String _languageCode = 'en';
   String? _courseKey;
@@ -1116,6 +1045,18 @@ class _VocabularyBulkDialogState extends State<_VocabularyBulkDialog> {
   String _fileName = '';
   List<VocabularyWord> _words = const [];
   String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final course = widget.initialCourse;
+    if (course != null) {
+      _courseKey = '${course.language}|${course.course}';
+      _level = widget.initialLevel?.trim() ?? '';
+      _lesson.text = widget.initialLesson?.trim() ?? '';
+      _languageCode = _isGerman(course.language) ? 'de' : 'en';
+    }
+  }
 
   List<AdminCoursePart> get _courses {
     final map = <String, AdminCoursePart>{};
@@ -1273,8 +1214,16 @@ class _VocabularyBulkDialogState extends State<_VocabularyBulkDialog> {
   @override
   Widget build(BuildContext context) {
     final courses = _courses;
+    final lockContext = widget.lockCourseContext;
+    AdminCoursePart? selectedCourse;
+    for (final course in courses) {
+      if ('${course.language}|${course.course}' == _courseKey) {
+        selectedCourse = course;
+        break;
+      }
+    }
     return AlertDialog(
-      title: const Text('استيراد كلمات Bulk'),
+      title: const Text('استيراد كلمات'),
       content: SizedBox(
         width: 560,
         child: SingleChildScrollView(
@@ -1288,51 +1237,66 @@ class _VocabularyBulkDialogState extends State<_VocabularyBulkDialog> {
                   DropdownMenuItem(value: 'en', child: Text('English')),
                   DropdownMenuItem(value: 'de', child: Text('German')),
                 ],
-                onChanged: (value) => setState(() {
-                  _languageCode = value ?? 'en';
-                  if (_fileName.isNotEmpty) {
-                    _words = _buildWords(_wordsToRows(_words));
-                  }
-                }),
+                onChanged: lockContext
+                    ? null
+                    : (value) => setState(() {
+                        _languageCode = value ?? 'en';
+                        if (_fileName.isNotEmpty) {
+                          _words = _buildWords(_wordsToRows(_words));
+                        }
+                      }),
               ),
-              DropdownButtonFormField<String>(
-                initialValue: _courseKey,
-                decoration: const InputDecoration(labelText: 'الكورس'),
-                items: courses
-                    .map(
-                      (course) => DropdownMenuItem(
-                        value: '${course.language}|${course.course}',
-                        child: Text('${course.language} - ${course.course}'),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _courseKey = value;
-                  _level = '';
-                  if (_fileName.isNotEmpty) {
-                    _words = _buildWords(_wordsToRows(_words));
-                  }
-                }),
-              ),
+              if (!lockContext)
+                DropdownButtonFormField<String>(
+                  initialValue: _courseKey,
+                  decoration: const InputDecoration(labelText: 'الكورس'),
+                  items: courses
+                      .map(
+                        (course) => DropdownMenuItem(
+                          value: '${course.language}|${course.course}',
+                          child: Text('${course.language} - ${course.course}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() {
+                    _courseKey = value;
+                    _level = '';
+                    if (_fileName.isNotEmpty) {
+                      _words = _buildWords(_wordsToRows(_words));
+                    }
+                  }),
+                )
+              else if (selectedCourse != null)
+                ListTile(
+                  title: Text(
+                    '${selectedCourse.language} - ${selectedCourse.course}',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
               DropdownButtonFormField<String>(
                 initialValue: _level.isEmpty ? null : _level,
-                decoration: const InputDecoration(labelText: 'الليفيل'),
+                decoration: const InputDecoration(labelText: 'الوحدة / المستوى'),
                 items: _levels
                     .map(
                       (level) =>
                           DropdownMenuItem(value: level, child: Text(level)),
                     )
                     .toList(),
-                onChanged: (value) => setState(() {
-                  _level = value ?? '';
-                  if (_fileName.isNotEmpty) {
-                    _words = _buildWords(_wordsToRows(_words));
-                  }
-                }),
+                onChanged: lockContext && widget.initialLevel?.isNotEmpty == true
+                    ? null
+                    : (value) => setState(() {
+                        _level = value ?? '';
+                        if (_fileName.isNotEmpty) {
+                          _words = _buildWords(_wordsToRows(_words));
+                        }
+                      }),
               ),
               TextField(
                 controller: _lesson,
-                decoration: const InputDecoration(labelText: 'الدرس'),
+                textAlign: TextAlign.right,
+                readOnly:
+                    lockContext && widget.initialLesson?.trim().isNotEmpty == true,
+                decoration: const InputDecoration(labelText: 'الدرس / اليونت'),
                 onChanged: (_) {
                   if (_fileName.isNotEmpty) {
                     setState(() => _words = _buildWords(_wordsToRows(_words)));

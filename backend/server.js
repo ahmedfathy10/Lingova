@@ -4075,6 +4075,35 @@ async function deleteVocabularyWord(request, response, wordId) {
   }
 }
 
+async function bulkDeleteVocabularyWords(request, response) {
+  if (!requireAdmin(request, response)) {
+    return;
+  }
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const ids = normalizeIdList(payload.ids);
+    if (!ids.length) {
+      sendJson(response, 400, { message: 'حدد كلمات للحذف.' });
+      return;
+    }
+    const idSet = new Set(ids);
+    const words = await readVocabularyWords();
+    const nextWords = words.filter((word) => !idSet.has(word.id));
+    const deletedCount = words.length - nextWords.length;
+    if (deletedCount === 0) {
+      sendJson(response, 404, { message: 'لم يتم العثور على الكلمات المحددة.' });
+      return;
+    }
+    await writeVocabularyWords(nextWords);
+    sendJson(response, 200, {
+      message: 'تم حذف الكلمات المحددة.',
+      deletedCount,
+    });
+  } catch {
+    sendJson(response, 500, { message: 'تعذر حذف الكلمات.' });
+  }
+}
+
 async function listAudioResources(request, response) {
   try {
     const resources = await readAudioResources();
@@ -5707,6 +5736,14 @@ const server = http.createServer(async (request, response) => {
   );
   if (bookDeleteActionMatch && request.method === 'POST') {
     await deleteAdminBook(request, response, bookDeleteActionMatch[1]);
+    return;
+  }
+
+  if (
+    url.pathname === '/api/admin/vocabulary/bulk-delete' &&
+    request.method === 'POST'
+  ) {
+    await bulkDeleteVocabularyWords(request, response);
     return;
   }
 
