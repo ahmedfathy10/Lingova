@@ -1422,6 +1422,11 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
   List<AudioResourceItem> _detectedAudioItems = const [];
   String _audioFolderError = '';
   bool _isImportingDriveFolder = false;
+  bool _isUploadingAudioFolder = false;
+  int _uploadTotal = 0;
+  int _uploadDone = 0;
+  int _uploadSuccess = 0;
+  int _uploadFailed = 0;
 
   @override
   void initState() {
@@ -1484,29 +1489,98 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
         .toList();
   }
 
-  Future<void> _pickAudioFolder() async {
+  Future<void> _pickAudioFolder(AdminCoursePart? selectedCourse) async {
+    if (selectedCourse == null) {
+      setState(() {
+        _audioFolderError = 'اختر الكورس قبل رفع فولدر الصوتيات.';
+      });
+      return;
+    }
+
     final files = await pickAudioFolderFiles();
     if (files == null) return;
     if (files.isEmpty) {
       setState(() {
         _detectedAudioItems = const [];
-        _audioFolderError = 'لم يتم العثور على ملفات صوتية داخل هذا الفولدر';
+        _audioFolderError = 'لم يتم العثور على ملفات mp3 داخل هذا الفولدر.';
       });
       return;
     }
 
-    final items = files
-        .map(
-          (file) => AudioResourceItem(
-            id: '',
-            title: file.title,
-            url: file.dataUrl,
-            fileType: file.fileType,
-            relativePath: file.relativePath,
-          ),
-        )
-        .toList();
-    _applyDetectedAudioItems(items);
+    final folderTitle = _title.text.trim().isEmpty
+        ? _folderTitleFromFiles(files)
+        : _title.text.trim();
+    setState(() {
+      _linkType = 'folder';
+      _fileType = 'audio';
+      _audioFolderError = '';
+      _detectedAudioItems = const [];
+      _isUploadingAudioFolder = true;
+      _uploadTotal = files.length;
+      _uploadDone = 0;
+      _uploadSuccess = 0;
+      _uploadFailed = 0;
+      if (_title.text.trim().isEmpty) {
+        _title.text = folderTitle;
+      }
+      if (_url.text.trim().isEmpty) {
+        _url.text =
+            'local-audio-folder:${DateTime.now().millisecondsSinceEpoch}';
+      }
+    });
+
+    final service = ContentManagementApiService();
+    final uploadedItems = <AudioResourceItem>[];
+    final failed = <String>[];
+    for (final file in files) {
+      try {
+        final item = await service.uploadAudioFolderFile(
+          token: widget.token,
+          file: file,
+          course: selectedCourse.course,
+          courseLanguage: selectedCourse.language,
+          level: _level,
+          folderTitle: folderTitle,
+        );
+        uploadedItems.add(item);
+        if (!mounted) return;
+        setState(() {
+          _uploadSuccess += 1;
+          _uploadDone += 1;
+        });
+      } catch (_) {
+        failed.add(file.relativePath);
+        if (!mounted) return;
+        setState(() {
+          _uploadFailed += 1;
+          _uploadDone += 1;
+        });
+      }
+    }
+
+    if (!mounted) return;
+    uploadedItems.sort((a, b) => a.relativePath.compareTo(b.relativePath));
+    setState(() {
+      _isUploadingAudioFolder = false;
+      _audioFolderError = failed.isEmpty
+          ? ''
+          : 'فشل رفع ${failed.length} ملف. تم حفظ الملفات التي نجحت فقط.';
+    });
+    if (uploadedItems.isEmpty) {
+      setState(() {
+        _detectedAudioItems = const [];
+        _items.clear();
+        _audioFolderError = 'فشل رفع كل الملفات. حاول مرة أخرى.';
+      });
+      return;
+    }
+    _applyDetectedAudioItems(uploadedItems);
+    if (failed.isNotEmpty && mounted) {
+      setState(() {
+        _audioFolderError =
+            'فشل رفع ${failed.length} ملف. تم حفظ الملفات التي نجحت فقط.';
+      });
+    }
   }
 
   Future<void> _importGoogleDriveFolder() async {
@@ -1576,6 +1650,13 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
             'local-audio-folder:${DateTime.now().millisecondsSinceEpoch}';
       }
     });
+  }
+
+  String _folderTitleFromFiles(List<PickedAudioFolderFile> files) {
+    final path = files.first.relativePath.replaceAll('\\', '/');
+    final slash = path.indexOf('/');
+    if (slash > 0) return path.substring(0, slash);
+    return 'فولدر صوتيات';
   }
 
   void _submit(AdminCoursePart? selectedCourse) {
@@ -1731,12 +1812,49 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
                     ),
                   ),
                   FilledButton.icon(
-                    onPressed: _pickAudioFolder,
-                    icon: const Icon(Icons.folder_open_rounded),
-                    label: const Text('اختيار فولدر صوتيات'),
+                    onPressed: _isUploadingAudioFolder
+                        ? null
+                        : () => _pickAudioFolder(selectedCourse),
+                    icon: _isUploadingAudioFolder
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.folder_open_rounded),
+                    label: Text(
+                      _isUploadingAudioFolder
+                          ? 'جاري رفع الفولدر...'
+                          : 'رفع فولدر صوتيات',
+                    ),
                   ),
                 ],
               ),
+              if (_isUploadingAudioFolder || _uploadTotal > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      LinearProgressIndicator(
+                        value: _uploadTotal == 0
+                            ? null
+                            : _uploadDone / _uploadTotal,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'تم رفع $_uploadDone / $_uploadTotal - ناجح: $_uploadSuccess - فشل: $_uploadFailed',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: _uploadFailed == 0
+                              ? Colors.green
+                              : Colors.orange,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (_detectedAudioItems.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -1787,7 +1905,9 @@ class _AudioResourceDialogState extends State<_AudioResourceDialog> {
           child: const Text('إلغاء'),
         ),
         FilledButton(
-          onPressed: () => _submit(selectedCourse),
+          onPressed: _isUploadingAudioFolder
+              ? null
+              : () => _submit(selectedCourse),
           child: const Text('حفظ'),
         ),
       ],

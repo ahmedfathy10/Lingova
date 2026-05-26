@@ -4074,6 +4074,25 @@ function safeStoragePathPart(value) {
     .slice(0, 90) || 'audio';
 }
 
+function safeStoragePathSegment(value) {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/^\.+$/, '')
+    .trim()
+    .slice(0, 120) || 'audio';
+}
+
+function safeRelativeStoragePath(value, fallbackName) {
+  const raw = String(value || fallbackName || 'audio.mp3').replace(/\\/g, '/');
+  const parts = raw
+    .split('/')
+    .map(safeStoragePathSegment)
+    .filter(Boolean);
+  return (parts.length ? parts : [safeStoragePathSegment(fallbackName)])
+    .join('/');
+}
+
 function extensionForMime(mimeType) {
   const type = String(mimeType || '').toLowerCase();
   if (type.includes('mpeg') || type.includes('mp3')) return '.mp3';
@@ -4139,6 +4158,68 @@ async function ensureOnlineAudioUrl(value, context) {
     parsed.buffer,
     parsed.mimeType
   );
+}
+
+async function uploadAdminAudioFolderFile(request, response) {
+  const adminSession = requireAdmin(request, response);
+  if (!adminSession) {
+    return;
+  }
+  if (!useSupabase) {
+    sendJson(response, 400, {
+      message: 'Supabase storage is not configured.',
+    });
+    return;
+  }
+
+  try {
+    const payload = JSON.parse((await readBody(request)) || '{}');
+    const file = payload.file && typeof payload.file === 'object'
+      ? payload.file
+      : payload;
+    const dataUrl = String(file.dataUrl || '').trim();
+    const parsed = parseDataUrl(dataUrl);
+    if (!parsed) {
+      sendJson(response, 400, { message: 'Invalid audio file.' });
+      return;
+    }
+
+    const relativePath = String(file.relativePath || '').trim();
+    const title = String(file.title || '').trim() ||
+      safeStoragePathSegment(relativePath.replace(/\.[^.]+$/, ''));
+    const extension = extensionForMime(parsed.mimeType);
+    const fallbackName = `${safeStoragePathSegment(title)}${extension}`;
+    const storageRelativePath = safeRelativeStoragePath(
+      relativePath,
+      fallbackName
+    );
+    const pathParts = [
+      safeStoragePathSegment(payload.courseLanguage || 'course'),
+      safeStoragePathSegment(payload.course || 'audio'),
+      safeStoragePathSegment(payload.level || 'level'),
+      safeStoragePathSegment(payload.folderTitle || 'folder'),
+      storageRelativePath,
+    ].filter(Boolean);
+    const publicUrl = await uploadSupabaseStorageObject(
+      pathParts.join('/'),
+      parsed.buffer,
+      parsed.mimeType
+    );
+
+    sendJson(response, 200, {
+      item: {
+        id: crypto.randomUUID(),
+        title,
+        url: publicUrl,
+        fileType: String(file.fileType || 'audio').trim() || 'audio',
+        relativePath: storageRelativePath,
+      },
+    });
+  } catch (error) {
+    sendJson(response, 500, {
+      message: error.message || 'تعذر رفع ملف الصوت.',
+    });
+  }
 }
 
 function googleDriveAudioMime(file) {
@@ -5352,6 +5433,13 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/api/admin/audio-resources/google-drive-folder') {
     if (request.method === 'POST') {
       await importGoogleDriveAudioFolder(request, response);
+      return;
+    }
+  }
+
+  if (url.pathname === '/api/admin/audio-resources/upload-folder-file') {
+    if (request.method === 'POST') {
+      await uploadAdminAudioFolderFile(request, response);
       return;
     }
   }

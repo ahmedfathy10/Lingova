@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../core/api_config.dart';
 import '../models/audio_resource.dart';
 import '../models/vocabulary_word.dart';
+import 'audio_folder_picker.dart';
 import 'auth_api_service.dart';
 import 'auth_http_client.dart';
 
@@ -93,6 +94,42 @@ class ContentManagementApiService {
       return;
     }
     throw AuthApiException(_readMessage(_readJson(response.body)));
+  }
+
+  Future<AudioResourceItem> uploadAudioFolderFile({
+    required String token,
+    required PickedAudioFolderFile file,
+    required String course,
+    required String courseLanguage,
+    required String level,
+    required String folderTitle,
+  }) async {
+    final response = await postJson(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/api/admin/audio-resources/upload-folder-file',
+      ),
+      {
+        'course': course,
+        'courseLanguage': courseLanguage,
+        'level': level,
+        'folderTitle': folderTitle,
+        'file': {
+          'title': file.title,
+          'dataUrl': file.dataUrl,
+          'relativePath': file.relativePath,
+          'fileType': file.fileType,
+        },
+      },
+      headers: _headers(token),
+    );
+    final json = _readJson(response.body);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final item = json['item'];
+      if (item is Map<String, dynamic>) {
+        return AudioResourceItem.fromJson(item);
+      }
+    }
+    throw AuthApiException(_readMessage(json));
   }
 
   Future<List<AudioResourceItem>> importGoogleDriveAudioFolder(

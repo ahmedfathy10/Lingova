@@ -17,12 +17,17 @@ class PickedAudioFolderFile {
   });
 }
 
-const _audioExtensions = {'.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'};
+const _audioExtensions = {'.mp3'};
 
 Future<List<PickedAudioFolderFile>?> pickAudioFolderFiles() async {
-  final directoryPath = await FilePicker.getDirectoryPath(
-    dialogTitle: 'اختر فولدر الصوتيات',
-  );
+  String? directoryPath;
+  try {
+    directoryPath = await FilePicker.getDirectoryPath(
+      dialogTitle: 'اختر فولدر الصوتيات',
+    );
+  } catch (_) {
+    return _pickMultipleAudioFiles();
+  }
   if (directoryPath == null) return null;
 
   final root = Directory(directoryPath);
@@ -41,6 +46,36 @@ Future<List<PickedAudioFolderFile>?> pickAudioFolderFiles() async {
         title: _titleFromPath(entity.path),
         dataUrl: 'data:${_mimeType(extension)};base64,${base64Encode(bytes)}',
         relativePath: relativePath,
+      ),
+    );
+  }
+  files.sort((a, b) => a.relativePath.compareTo(b.relativePath));
+  return files;
+}
+
+Future<List<PickedAudioFolderFile>?> _pickMultipleAudioFiles() async {
+  final result = await FilePicker.pickFiles(
+    allowMultiple: true,
+    type: FileType.custom,
+    allowedExtensions: const ['mp3'],
+    withData: true,
+  );
+  if (result == null) return null;
+
+  final files = <PickedAudioFolderFile>[];
+  for (final file in result.files) {
+    final name = file.name;
+    final extension = _extension(name);
+    if (!_audioExtensions.contains(extension)) continue;
+    final bytes =
+        file.bytes ??
+        (file.path == null ? null : await File(file.path!).readAsBytes());
+    if (bytes == null || bytes.isEmpty) continue;
+    files.add(
+      PickedAudioFolderFile(
+        title: _titleFromPath(name),
+        dataUrl: 'data:${_mimeType(extension)};base64,${base64Encode(bytes)}',
+        relativePath: name,
       ),
     );
   }

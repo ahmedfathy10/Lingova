@@ -17,7 +17,7 @@ class PickedAudioFolderFile {
   });
 }
 
-const _audioExtensions = {'.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'};
+const _audioExtensions = {'.mp3'};
 
 Future<List<PickedAudioFolderFile>?> pickAudioFolderFiles() async {
   final input = html.FileUploadInputElement()
